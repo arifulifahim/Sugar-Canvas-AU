@@ -1,0 +1,17 @@
+{
+  "name": "Sugar Canvas Phone Companion",
+  "short_name": "Sugar Canvas",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fff8fb",
+  "theme_color": "#d9468f",
+  "description": "Offline Sugar Canvas quoting, orders, customers and sync companion.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

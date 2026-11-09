@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#d9468f">
+<title>Sugar Canvas Companion</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <div class="brand">Sugar Canvas</div>
+    <div class="sub">Phone Companion</div>
+  </div>
+  <div id="syncBadge" class="badge">Offline ready</div>
+</header>
+
+<main id="app">
+<section id="home" class="page active">
+  <h1>Welcome</h1>
+  <div class="hero-card">
+    <div class="big">Quick bakery tools</div>
+    <div class="muted">Quotes, orders, customers and 30-day history on your phone.</div>
+  </div>
+  <div class="home-grid">
+    <button class="tile" data-go="cake"><span>🎂</span><b>New Cake Quote</b></button>
+    <button class="tile" data-go="donut"><span>🍩</span><b>New Donut Quote</b></button>
+    <button class="tile" data-go="orders"><span>📋</span><b>Orders</b></button>
+    <button class="tile" data-go="customers"><span>👤</span><b>Customers</b></button>
+    <button class="tile" data-go="sync"><span>↕</span><b>Sync</b></button>
+  </div>
+  <div class="summary" id="homeSummary"></div>
+</section>
+
+<section id="cake" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Cake Quote</h1></div>
+  <div class="card form">
+    <label>Customer<select id="cakeCustomer"></select></label>
+    <button class="secondary" id="cakeAddCustomer">+ Add Customer</button>
+    <label>Recipe<select id="cakeRecipe"></select></label>
+    <div class="two">
+      <label>Weight (g)<input id="cakeWeight" type="number" value="500" min="100" step="50"></label>
+      <label>Quantity<input id="cakeQty" type="number" value="1" min="1" step="1"></label>
+    </div>
+    <label>Packaging<select id="cakePackaging"></select></label>
+    <label>Customisation charge ($)<input id="cakeCustom" type="number" value="0" min="0" step="0.5"></label>
+    <label>Delivery date<input id="cakeDate" type="date"></label>
+    <label>Notes<textarea id="cakeNote" rows="3" placeholder="Colour, writing, topper, customer request..."></textarea></label>
+  </div>
+  <div class="price-card">
+    <div><span>Production cost</span><b id="cakeCost">$0.00</b></div>
+    <div><span>Suggested price</span><b id="cakeSuggested">$0.00</b></div>
+    <label>Customer price ($)<input id="cakeFinalPrice" type="number" value="0" step="0.5"></label>
+    <label>Deposit ($)<input id="cakeDeposit" type="number" value="0" min="0" step="0.5"></label>
+  </div>
+  <div class="action-row">
+    <button id="saveCakeQuote">Save Quote</button>
+    <button id="confirmCakeOrder">Confirm Order</button>
+  </div>
+</section>
+
+<section id="donut" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Donut Quote</h1></div>
+  <div class="card form">
+    <label>Customer<select id="donutCustomer"></select></label>
+    <button class="secondary" id="donutAddCustomer">+ Add Customer</button>
+    <label>Product
+      <select id="donutKind">
+        <option value="bomboloni">Bomboloni Assorted</option>
+        <option value="ring_glazed">Original Glazed Ring Donuts</option>
+        <option value="ring_assorted">Ring Donut Assorted</option>
+      </select>
+    </label>
+    <label>Pieces
+      <select id="donutQty"><option>4</option><option>6</option><option>8</option></select>
+    </label>
+    <label>Flavours / notes<textarea id="donutFlavours" rows="3" placeholder="Nutella, pistachio, custard..."></textarea></label>
+    <label>Delivery date<input id="donutDate" type="date"></label>
+    <label>Deposit ($)<input id="donutDeposit" type="number" value="0" min="0" step="0.5"></label>
+  </div>
+  <div class="price-card">
+    <div><span>Menu price</span><b id="donutPrice">$0.00</b></div>
+  </div>
+  <div class="action-row">
+    <button id="saveDonutQuote">Save Quote</button>
+    <button id="confirmDonutOrder">Confirm Order</button>
+  </div>
+</section>
+
+<section id="orders" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Orders</h1></div>
+  <div class="filters">
+    <input id="orderSearch" placeholder="Search customer or order...">
+    <select id="orderFilter">
+      <option value="all">All</option><option value="active">Active</option>
+      <option value="quotation">Quotes</option><option value="completed">Completed</option>
+    </select>
+  </div>
+  <div id="ordersList" class="list"></div>
+</section>
+
+<section id="customers" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Customers</h1></div>
+  <button id="addCustomerBtn">+ Add Customer</button>
+  <div id="customersList" class="list"></div>
+</section>
+
+<section id="sync" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Sync</h1></div>
+  <div class="card">
+    <h2>Laptop → Phone</h2>
+    <p>On the laptop open Sugar Canvas → Settings → <b>Export to Phone</b>. Send that JSON file to this phone, then import it here.</p>
+    <label class="file-button">Import from Laptop<input id="importLaptop" type="file" accept=".json,application/json"></label>
+  </div>
+  <div class="card">
+    <h2>Phone → Laptop</h2>
+    <p>Your new/changed customers, quotes and orders are stored safely on this phone. Export them and import the file on the laptop.</p>
+    <button id="exportLaptop">Export Changes to Laptop</button>
+  </div>
+  <div class="card">
+    <h2>Status</h2>
+    <div id="syncStatus"></div>
+  </div>
+</section>
+</main>
+
+<nav class="bottom-nav">
+  <button data-go="home">Home</button>
+  <button data-go="cake">Cake</button>
+  <button data-go="orders">Orders</button>
+  <button data-go="sync">Sync</button>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>
