@@ -5,7 +5,7 @@
   "display": "standalone",
   "background_color": "#fff8fb",
   "theme_color": "#d9468f",
-  "description": "Offline Sugar Canvas quoting, orders, customers and sync companion.",
+  "description": "Sugar Canvas offline quotes, weight-based add-ons, price summaries, orders and Wi-Fi sync.",
   "icons": [
     {
       "src": "icon.svg",

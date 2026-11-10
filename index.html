@@ -40,22 +40,59 @@
   <div class="card form">
     <label>Customer<select id="cakeCustomer"></select></label>
     <button class="secondary" id="cakeAddCustomer">+ Add Customer</button>
-    <label>Recipe<select id="cakeRecipe"></select></label>
+
+    <label>Cake<select id="cakeRecipe"></select></label>
     <div class="two">
       <label>Weight (g)<input id="cakeWeight" type="number" value="500" min="100" step="50"></label>
       <label>Quantity<input id="cakeQty" type="number" value="1" min="1" step="1"></label>
     </div>
+
     <label>Packaging<select id="cakePackaging"></select></label>
-    <label>Customisation charge ($)<input id="cakeCustom" type="number" value="0" min="0" step="0.5"></label>
+
+    <div class="subsection">
+      <div class="subsection-head">
+        <div>
+          <b>Add-Ons / Frosting</b>
+          <div class="small">Uses the same Add-On recipes and weight-based pricing from the laptop.</div>
+        </div>
+      </div>
+      <div id="cakeAddonList" class="addon-grid"></div>
+      <div id="selectedAddons" class="selected-addons"></div>
+      <button class="secondary" id="addCustomAddon">+ Other / Custom Add-On</button>
+    </div>
+
     <label>Delivery date<input id="cakeDate" type="date"></label>
-    <label>Notes<textarea id="cakeNote" rows="3" placeholder="Colour, writing, topper, customer request..."></textarea></label>
+    <label>Notes<textarea id="cakeNote" rows="3" placeholder="Colour, writing, customer request..."></textarea></label>
   </div>
+
   <div class="price-card">
-    <div><span>Production cost</span><b id="cakeCost">$0.00</b></div>
-    <div><span>Suggested price</span><b id="cakeSuggested">$0.00</b></div>
-    <label>Customer price ($)<input id="cakeFinalPrice" type="number" value="0" step="0.5"></label>
-    <label>Deposit ($)<input id="cakeDeposit" type="number" value="0" min="0" step="0.5"></label>
+    <div><span>Production Cost</span><b id="cakeCost">$0.00</b></div>
+    <div><span>Suggested Price</span><b id="cakeSuggested">$0.00</b></div>
+    <div><span>Add-Ons</span><b id="cakeAddonTotal">$0.00</b></div>
   </div>
+
+  <button class="wide" id="reviewCakePrice">Review Price →</button>
+</section>
+
+<section id="cakeReview" class="page">
+  <div class="page-head"><button class="back" data-go="cake">←</button><h1>Price Summary</h1></div>
+
+  <div class="receipt card">
+    <div class="receipt-brand">Sugar Canvas</div>
+    <div class="small center">Cake Quote Price Breakdown</div>
+    <div class="receipt-rule"></div>
+    <div id="cakeReceiptLines"></div>
+    <div class="receipt-rule"></div>
+    <div class="receipt-line strong"><span>Total Price</span><b id="reviewTotalPrice">$0.00</b></div>
+    <div class="receipt-line suggested"><span>Suggested Price</span><b id="reviewSuggestedPrice">$0.00</b></div>
+  </div>
+
+  <div class="card form">
+    <label>Final Customer Price ($)<input id="cakeFinalPrice" type="number" value="0" step="0.5"></label>
+    <label>Deposit ($)<input id="cakeDeposit" type="number" value="0" min="0" step="0.5"></label>
+    <div class="receipt-line"><span>Estimated Profit</span><b id="reviewProfit">$0.00</b></div>
+  </div>
+
   <div class="action-row">
     <button id="saveCakeQuote">Save Quote</button>
     <button id="confirmCakeOrder">Confirm Order</button>
@@ -110,20 +147,41 @@
 
 <section id="sync" class="page">
   <div class="page-head"><button class="back" data-go="home">←</button><h1>Sync</h1></div>
-  <div class="card">
-    <h2>Laptop → Phone</h2>
-    <p>On the laptop open Sugar Canvas → Settings → <b>Export to Phone</b>. Send that JSON file to this phone, then import it here.</p>
-    <label class="file-button">Import from Laptop<input id="importLaptop" type="file" accept=".json,application/json"></label>
+
+  <div class="card wifi-card">
+    <h2>Same-Wi-Fi Sync</h2>
+    <p class="muted">Pair this phone once. After that, no pairing code is needed again. The laptop must be open and both devices must be on the same Wi-Fi.</p>
+    <div id="wifiNotPaired">
+      <label>Laptop address<input id="lanServer" inputmode="url" placeholder="http://192.168.1.25:8765"></label>
+      <label>6-digit pairing code<input id="lanCode" inputmode="numeric" maxlength="6" placeholder="123456"></label>
+      <label>Phone name<input id="lanDeviceName" placeholder="Choa's Phone"></label>
+      <button id="pairPhone">Pair Phone</button>
+    </div>
+    <div id="wifiPaired" hidden>
+      <div class="sync-ok">✓ This phone is approved</div>
+      <div class="small" id="pairedLaptop"></div>
+      <label>Laptop address<input id="pairedServer" inputmode="url"></label>
+      <div class="action-row compact">
+        <button id="saveLanAddress" class="secondary">Update Address</button>
+        <button id="syncNow">Sync Now</button>
+      </div>
+      <button id="forgetLaptop" class="danger-button">Forget This Laptop</button>
+    </div>
   </div>
+
   <div class="card">
-    <h2>Phone → Laptop</h2>
-    <p>Your new/changed customers, quotes and orders are stored safely on this phone. Export them and import the file on the laptop.</p>
-    <button id="exportLaptop">Export Changes to Laptop</button>
-  </div>
-  <div class="card">
-    <h2>Status</h2>
+    <h2>Sync Status</h2>
     <div id="syncStatus"></div>
   </div>
+
+  <details class="card">
+    <summary><b>Backup File Sync</b></summary>
+    <p>If Wi-Fi sync is unavailable, you can still use the JSON file method.</p>
+    <p><b>Laptop → Phone</b></p>
+    <label class="file-button">Import from Laptop<input id="importLaptop" type="file" accept=".json,application/json"></label>
+    <p style="margin-top:18px"><b>Phone → Laptop</b></p>
+    <button id="exportLaptop">Export Changes to Laptop</button>
+  </details>
 </section>
 </main>
 
