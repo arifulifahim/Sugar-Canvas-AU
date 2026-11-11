@@ -6,14 +6,18 @@
 <meta name="theme-color" content="#d9468f">
 <title>Sugar Canvas Companion</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="logo-192.png" type="image/png">
+<link rel="apple-touch-icon" href="logo-192.png">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
 <header class="topbar">
-  <div>
-    <div class="brand">Sugar Canvas</div>
-    <div class="sub">Phone Companion</div>
+  <div class="brand-wrap">
+    <img class="brand-logo" src="logo-96.png" alt="Sugar Canvas logo">
+    <div>
+      <div class="brand">Sugar Canvas</div>
+      <div class="sub">Phone Companion</div>
+    </div>
   </div>
   <div id="syncBadge" class="badge">Offline ready</div>
 </header>
@@ -48,6 +52,10 @@
     </div>
 
     <label>Packaging<select id="cakePackaging"></select></label>
+    <label>Customization Cost ($)
+      <input id="cakeCustomizationCost" type="number" value="0" min="0" step="0.10"
+             placeholder="Extra decoration/material cost">
+    </label>
 
     <div class="subsection">
       <div class="subsection-head">
@@ -66,9 +74,12 @@
   </div>
 
   <div class="price-card">
-    <div><span>Production Cost</span><b id="cakeCost">$0.00</b></div>
-    <div><span>Suggested Price</span><b id="cakeSuggested">$0.00</b></div>
-    <div><span>Add-Ons</span><b id="cakeAddonTotal">$0.00</b></div>
+    <div><span>Full Cake Cost</span><b id="cakeCost">$0.00</b></div>
+    <div><span>Add-On Cost</span><b id="cakeAddonTotal">$0.00</b></div>
+    <label class="profit-picker">Profit %
+      <input id="cakeProfitPct" type="number" value="80" min="80" step="5">
+    </label>
+    <div><span>Calculated Selling Price</span><b id="cakeSellingPrice">$0</b></div>
   </div>
 
   <button class="wide" id="reviewCakePrice">Review Price →</button>
@@ -83,12 +94,13 @@
     <div class="receipt-rule"></div>
     <div id="cakeReceiptLines"></div>
     <div class="receipt-rule"></div>
-    <div class="receipt-line strong"><span>Total Price</span><b id="reviewTotalPrice">$0.00</b></div>
-    <div class="receipt-line suggested"><span>Suggested Price</span><b id="reviewSuggestedPrice">$0.00</b></div>
+    <div class="receipt-line strong"><span>Total Cost</span><b id="reviewTotalCost">$0.00</b></div>
+    <div class="receipt-line"><span>Profit %</span><b id="reviewProfitPct">80%</b></div>
+    <div class="receipt-line suggested"><span>Calculated Selling Price</span><b id="reviewSellingPrice">$0</b></div>
   </div>
 
   <div class="card form">
-    <label>Final Customer Price ($)<input id="cakeFinalPrice" type="number" value="0" step="0.5"></label>
+    <label>Final Customer Price ($)<input id="cakeFinalPrice" type="number" value="0" step="1"></label>
     <label>Deposit ($)<input id="cakeDeposit" type="number" value="0" min="0" step="0.5"></label>
     <div class="receipt-line"><span>Estimated Profit</span><b id="reviewProfit">$0.00</b></div>
   </div>

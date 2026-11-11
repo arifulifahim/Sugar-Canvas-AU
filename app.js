@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-let S=load();if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};
+let S=load();if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
@@ -51,10 +51,6 @@ function packagingOptions(){
 function addonCostFor(recipe,w,q){
   return Number(recipe?.base_cost||0)*(Number(w||500)/Number(recipe?.base_weight_g||500))*Number(q||1)
 }
-function addonSellingFor(recipe,w,q){
-  const cost=addonCostFor(recipe,w,q);
-  return Math.ceil(cost*2)+2;
-}
 function getSelectedAddonRows(){
   const w=Number(document.getElementById('cakeWeight').value||500);
   const q=Number(document.getElementById('cakeQty').value||1);
@@ -62,9 +58,9 @@ function getSelectedAddonRows(){
     const r=S.recipes.find(x=>x.id===id);
     if(!r)return null;
     const cost=addonCostFor(r,w,q);
-    return {id:r.id,item:r.name,recipe:r.name,item_type:'Add-On',quantity:q,target_weight_g:w,base_cost:cost,price:addonSellingFor(r,w,q),manual:false};
+    return {id:r.id,item:r.name,recipe:r.name,item_type:'Add-On',quantity:q,target_weight_g:w,base_cost:cost,cost:cost,manual:false};
   }).filter(Boolean);
-  const custom=(S.cakeDraft.customAddons||[]).map(x=>({id:x.id,item:x.name,item_type:'Add-On',quantity:1,target_weight_g:w,base_cost:0,price:Number(x.price||0),manual:true}));
+  const custom=(S.cakeDraft.customAddons||[]).map(x=>({id:x.id,item:x.name,item_type:'Add-On',quantity:1,target_weight_g:w,base_cost:Number(x.cost||0),cost:Number(x.cost||0),manual:true}));
   return [...recipeRows,...custom];
 }
 function renderAddonChoices(){
@@ -78,7 +74,7 @@ function renderAddonChoices(){
     addons.forEach(r=>{
       const selected=(S.cakeDraft.addons||[]).includes(r.id);
       const b=document.createElement('button');b.type='button';b.className='addon-chip'+(selected?' selected':'');
-      b.innerHTML=`${titleItem(r.name)}<span class="addon-price">${money(addonSellingFor(r,w,q))}</span>`;
+      b.innerHTML=`${titleItem(r.name)}<span class="addon-price">${money(addonCostFor(r,w,q))} cost</span>`;
       b.onclick=()=>{
         const set=new Set(S.cakeDraft.addons||[]);
         if(set.has(r.id))set.delete(r.id);else set.add(r.id);
@@ -90,7 +86,7 @@ function renderAddonChoices(){
   const selectedBox=document.getElementById('selectedAddons');selectedBox.innerHTML='';
   getSelectedAddonRows().forEach(a=>{
     const row=document.createElement('div');row.className='selected-addon-row';
-    row.innerHTML=`<div><b>${titleItem(a.item)}</b><div class="small">${a.manual?'Manual Custom Add-On':`${Math.round(a.target_weight_g)}g cake`}</div></div><div><b>${money(a.price)}</b> <button class="remove-mini" type="button">×</button></div>`;
+    row.innerHTML=`<div><b>${titleItem(a.item)}</b><div class="small">${a.manual?'Manual Custom Add-On Cost':`${Math.round(a.target_weight_g)}g cake`}</div></div><div><b>${money(a.base_cost)}</b> <button class="remove-mini" type="button">×</button></div>`;
     row.querySelector('button').onclick=()=>{
       if(a.manual)S.cakeDraft.customAddons=(S.cakeDraft.customAddons||[]).filter(x=>x.id!==a.id);
       else S.cakeDraft.addons=(S.cakeDraft.addons||[]).filter(id=>id!==a.id);
@@ -99,40 +95,50 @@ function renderAddonChoices(){
     selectedBox.appendChild(row);
   });
 }
+function normaliseProfitPct(){
+  const input=document.getElementById('cakeProfitPct');
+  let pct=Number(input.value||80);
+  if(!Number.isFinite(pct)||pct<80)pct=80;
+  input.value=String(pct);
+  S.cakeDraft.profitPct=pct;
+  localStorage.setItem(KEY,JSON.stringify(S));
+  return pct;
+}
+function roundSellingUp(n){return Math.ceil(Number(n||0));}
+
 function cakeCalc(){
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
   const w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
-  const p=S.packaging.find(x=>x.id===document.getElementById('cakePackaging').value); const pack=Number(p?.total_cost||0);
+  const p=S.packaging.find(x=>x.id===document.getElementById('cakePackaging').value);
+  const pack=Number(p?.total_cost||0);
+  const customizationCost=Math.max(0,Number(document.getElementById('cakeCustomizationCost').value||0));
   const addonRows=getSelectedAddonRows();
   const addonCost=addonRows.reduce((a,x)=>a+Number(x.base_cost||0),0);
-  const addonSelling=addonRows.reduce((a,x)=>a+Number(x.price||0),0);
-  if(!r){
-    document.getElementById('cakeCost').textContent='$0.00';
-    document.getElementById('cakeSuggested').textContent=money(addonSelling);
-    document.getElementById('cakeAddonTotal').textContent=money(addonSelling);
-    return {cost:addonCost,suggested:addonSelling,pack,addonRows,addonCost,addonSelling};
-  }
-  const recipeCost=Number(r.base_cost||0)*(w/Number(r.base_weight_g||500))*q;
-  const pct=Number(r.profit_percent||50);
-  const cakeSelling=recipeCost*(1+pct/100);
-  const cost=recipeCost+pack+addonCost;
-  const suggested=cakeSelling+pack+addonSelling;
+  const pct=normaliseProfitPct();
+  const recipeCost=r ? Number(r.base_cost||0)*(w/Number(r.base_weight_g||500))*q : 0;
+  const cost=recipeCost+addonCost+pack+customizationCost;
+  const selling=roundSellingUp(cost*(1+pct/100));
   document.getElementById('cakeCost').textContent=money(cost);
-  document.getElementById('cakeSuggested').textContent=money(suggested);
-  document.getElementById('cakeAddonTotal').textContent=money(addonSelling);
-  return {cost,suggested,pack,recipe:r,packaging:p,recipeCost,cakeSelling,addonRows,addonCost,addonSelling};
+  document.getElementById('cakeAddonTotal').textContent=money(addonCost);
+  document.getElementById('cakeSellingPrice').textContent='$'+selling.toFixed(0);
+  return {cost,selling,profitPct:pct,pack,recipe:r,packaging:p,recipeCost,addonRows,addonCost,customizationCost};
 }
-['cakeRecipe','cakeWeight','cakeQty','cakePackaging'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{renderAddonChoices();cakeCalc()}));
+
+['cakeRecipe','cakeWeight','cakeQty','cakePackaging','cakeCustomizationCost'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{renderAddonChoices();cakeCalc()})
+);
+document.getElementById('cakeProfitPct').addEventListener('input',()=>{cakeCalc()});
+document.getElementById('cakeProfitPct').addEventListener('change',()=>{normaliseProfitPct();cakeCalc()});
 
 document.getElementById('addCustomAddon').onclick=()=>{
   const name=prompt('Custom add-on description, for example Fresh Flowers or Special Topper');
   if(!name)return;
-  const raw=prompt('Customer charge for this add-on ($)');
+  const raw=prompt('What does this add-on COST you? ($)');
   if(raw===null)return;
-  const price=Number(String(raw).replace('$','').replace(',',''));
-  if(!Number.isFinite(price)||price<0){alert('Enter a valid price.');return}
+  const cost=Number(String(raw).replace('$','').replace(',',''));
+  if(!Number.isFinite(cost)||cost<0){alert('Enter a valid cost.');return}
   S.cakeDraft.customAddons=S.cakeDraft.customAddons||[];
-  S.cakeDraft.customAddons.push({id:uid(),name:name.trim(),price});
+  S.cakeDraft.customAddons.push({id:uid(),name:name.trim(),cost});
   localStorage.setItem(KEY,JSON.stringify(S));renderAddonChoices();cakeCalc();
 };
 
@@ -141,32 +147,36 @@ function buildCakeReceipt(){
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
   if(!customer||!r){alert('Choose customer and cake first.');return null}
   const calc=cakeCalc(),w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
-  const lines=[{name:`${titleItem(r.name)} • ${Math.round(w)}g`,price:calc.cakeSelling,kind:'Cake'}];
-  calc.addonRows.forEach(a=>lines.push({name:titleItem(a.item),price:Number(a.price||0),kind:'Add-On'}));
-  if(calc.packaging&&calc.pack>0)lines.push({name:titleItem(calc.packaging.name),price:calc.pack,kind:'Packaging'});
-  const total=lines.reduce((a,x)=>a+Number(x.price||0),0);
-  return {customer,r,calc,w,q,lines,total,suggested:calc.suggested};
+  const lines=[{name:`${titleItem(r.name)} • ${Math.round(w)}g`,cost:calc.recipeCost,kind:'Cake Cost'}];
+  calc.addonRows.forEach(a=>lines.push({name:titleItem(a.item),cost:Number(a.base_cost||0),kind:'Add-On Cost'}));
+  if(calc.packaging&&calc.pack>0)lines.push({name:titleItem(calc.packaging.name),cost:calc.pack,kind:'Packaging Cost'});
+  if(calc.customizationCost>0)lines.push({name:'Customization',cost:calc.customizationCost,kind:'Customization Cost'});
+  return {customer,r,calc,w,q,lines,totalCost:calc.cost,selling:calc.selling,profitPct:calc.profitPct};
 }
+
 function renderCakeReview(){
   const data=buildCakeReceipt();if(!data)return false;
   const box=document.getElementById('cakeReceiptLines');box.innerHTML='';
   data.lines.forEach(x=>{
     const row=document.createElement('div');row.className='receipt-line';
-    row.innerHTML=`<span>${x.name}<div class="item-sub">${x.kind}</div></span><b>${money(x.price)}</b>`;
+    row.innerHTML=`<span>${x.name}<div class="item-sub">${x.kind}</div></span><b>${money(x.cost)}</b>`;
     box.appendChild(row);
   });
-  document.getElementById('reviewTotalPrice').textContent=money(data.total);
-  document.getElementById('reviewSuggestedPrice').textContent=money(data.suggested);
+  document.getElementById('reviewTotalCost').textContent=money(data.totalCost);
+  document.getElementById('reviewProfitPct').textContent=Number(data.profitPct).toFixed(0)+'%';
+  document.getElementById('reviewSellingPrice').textContent='$'+Number(data.selling).toFixed(0);
   const finalInput=document.getElementById('cakeFinalPrice');
-  if(!finalInput.dataset.manual||!finalInput.value)finalInput.value=Number(data.suggested).toFixed(2);
+  if(!finalInput.dataset.manual||!finalInput.value)finalInput.value=Number(data.selling).toFixed(0);
   updateReviewProfit();
   return true;
 }
+
 function updateReviewProfit(){
   const calc=cakeCalc();
   const final=Number(document.getElementById('cakeFinalPrice').value||0);
   document.getElementById('reviewProfit').textContent=money(final-Number(calc.cost||0));
 }
+
 document.getElementById('cakeFinalPrice').addEventListener('input',e=>{e.target.dataset.manual='1';updateReviewProfit()});
 document.getElementById('reviewCakePrice').onclick=()=>{if(renderCakeReview())go('cakeReview')};
 
@@ -180,32 +190,15 @@ function saveCake(status){
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
   if(!customer||!r){alert('Choose customer and cake.');return}
   const calc=cakeCalc(),w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
-  const price=Number(document.getElementById('cakeFinalPrice').value||calc.suggested);
+  const price=Number(document.getElementById('cakeFinalPrice').value||calc.selling);
   const dep=Number(document.getElementById('cakeDeposit').value||0);
-  const cakeLine={
-    item:r.name,recipe:r.name,item_type:'Cake',quantity:q,target_weight_g:w,
-    base_cost:calc.recipeCost+calc.pack,packaging_type:calc.packaging?.name||'',
-    packaging_cost:calc.pack,customisation:0,price:calc.cakeSelling+calc.pack
-  };
-  const addonLines=calc.addonRows.map(a=>({
-    item:a.item,recipe:a.recipe||'',recipe_id:a.id||'',item_type:'Add-On',
-    quantity:a.quantity||1,target_weight_g:w,base_cost:Number(a.base_cost||0),
-    packaging_type:'None',packaging_cost:0,customisation:0,price:Number(a.price||0),
-    manual_custom_addon:!!a.manual
-  }));
+  const cakeLine={item:r.name,recipe:r.name,item_type:'Cake',quantity:q,target_weight_g:w,base_cost:calc.recipeCost,packaging_type:'',packaging_cost:0,customisation:0,price:0};
+  const addonLines=calc.addonRows.map(a=>({item:a.item,recipe:a.recipe||'',recipe_id:a.id||'',item_type:'Add-On',quantity:a.quantity||1,target_weight_g:w,base_cost:Number(a.base_cost||0),packaging_type:'None',packaging_cost:0,customisation:0,price:0,manual_custom_addon:!!a.manual}));
   const receipt=buildCakeReceipt();
-  const o={
-    phone_sync_id:uid(),customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,
-    date:document.getElementById('cakeDate').value||todayIso(),
-    base_cost:calc.cost,cost:calc.cost,packaging_type:calc.packaging?.name||'',packaging_cost:calc.pack,
-    customisation:calc.addonSelling,price,deposit:dep,status,
-    workflow_status:status==='Confirmed'?'Confirmed':'',
-    note:document.getElementById('cakeNote').value,created:todayIso(),modified_at:nowIso(),
-    suggested_price:calc.suggested,price_breakdown:receipt?.lines||[],
-    items:[cakeLine,...addonLines]
-  };
+  const o={phone_sync_id:uid(),customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,date:document.getElementById('cakeDate').value||todayIso(),base_cost:calc.cost,cost:calc.cost,packaging_type:calc.packaging?.name||'',packaging_cost:calc.pack,customisation:calc.customizationCost,addon_cost:calc.addonCost,profit_percent:calc.profitPct,calculated_selling_price:calc.selling,price,deposit:dep,status,workflow_status:status==='Confirmed'?'Confirmed':'',note:document.getElementById('cakeNote').value,created:todayIso(),modified_at:nowIso(),price_breakdown:receipt?.lines||[],items:[cakeLine,...addonLines]};
   S.orders.unshift(o);markOrder(o);
-  S.cakeDraft={addons:[],customAddons:[]};
+  S.cakeDraft={addons:[],customAddons:[],profitPct:calc.profitPct};
+  document.getElementById('cakeCustomizationCost').value='0';
   document.getElementById('cakeFinalPrice').dataset.manual='';
   localStorage.setItem(KEY,JSON.stringify(S));renderAddonChoices();save();
   alert(status==='Quotation'?'Quote saved on phone.':'Order confirmed and saved on phone.');
@@ -275,7 +268,7 @@ document.getElementById('forgetLaptop').onclick=()=>{
 document.getElementById('syncNow').onclick=async()=>{
   try{
     if(!(S.lan&&S.lan.token&&S.lan.server)){alert('Pair this phone first.');return}
-    const payload={schema:'sugar_canvas_phone_changes',version:3,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders)};
+    const payload={schema:'sugar_canvas_phone_changes',version:4,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders)};
     const enc=b64urlJson(payload);
     if(enc.length>70000){alert('There are too many unsynced changes for Wi-Fi bridge sync. Use Backup File Sync once, then continue with Wi-Fi sync.');return}
     const ts=Math.floor(Date.now()/1000).toString();
@@ -286,7 +279,7 @@ document.getElementById('syncNow').onclick=async()=>{
 };
 
 document.getElementById('exportLaptop').onclick=()=>{
-  const payload={schema:'sugar_canvas_phone_changes',version:3,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders)};
+  const payload={schema:'sugar_canvas_phone_changes',version:4,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders)};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
