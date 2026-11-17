@@ -227,8 +227,14 @@
   <div class="card form">
     <b>Add Purchased Ingredient</b>
     <label>Ingredient<select id="purIngredient"></select></label>
-    <div class="two"><label>Quantity<input id="purQty" type="number" min="0" step="0.01"></label><label>Unit<select id="purUnit"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select></label></div>
-    <label>Amount Paid For This Item ($)<input id="purAmount" type="number" min="0" step="0.01"></label>
+    <button id="purNewIngredient" type="button" class="secondary">+ New Ingredient</button>
+    <div class="two">
+      <label>Packs Bought<input id="purPacks" type="number" min="0.01" step="1" value="1"></label>
+      <label>Size Per Pack<input id="purPackSize" type="number" min="0.01" step="0.01"></label>
+    </div>
+    <label>Unit<select id="purUnit"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select></label>
+    <div class="card small">Total quantity to stock: <b id="purTotalQty">0</b></div>
+    <label>Amount Paid For All Packs ($)<input id="purAmount" type="number" min="0" step="0.01"></label>
     <label class="checkline"><input id="purUpdatePrice" type="checkbox" checked> Update current recipe price</label>
     <button id="purAddItem" type="button" class="secondary">+ Add Item</button>
     <div id="purItemsList"></div>

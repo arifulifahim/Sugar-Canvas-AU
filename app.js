@@ -542,11 +542,64 @@ document.getElementById('recipeTypeFilter').addEventListener('change',renderReci
 
 let purchaseDraftItems=[];let purchaseDraftAttachments=[];
 function renderPurchaseIngredientOptions(){const sel=document.getElementById('purIngredient');if(!sel)return;const old=sel.value;sel.innerHTML='<option value="">Select ingredient</option>';[...S.ingredients].sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=titleItem(i.name);sel.appendChild(o)});if([...sel.options].some(o=>o.value===old))sel.value=old}
-function renderPurchaseDraft(){const box=document.getElementById('purItemsList');if(!box)return;box.innerHTML='';purchaseDraftItems.forEach(x=>{const d=document.createElement('div');d.className='purchase-item';d.innerHTML=`<div><b>${titleItem(x.ingredient)}</b><div class="small">${x.qty} ${x.unit} • ${money(x.amount)} • Update price: ${x.update_price?'Yes':'No'}</div></div><button type="button" class="remove-mini">×</button>`;d.querySelector('button').onclick=()=>{purchaseDraftItems=purchaseDraftItems.filter(y=>y.id!==x.id);renderPurchaseDraft()};box.appendChild(d)})}
+function renderPurchaseDraft(){const box=document.getElementById('purItemsList');if(!box)return;box.innerHTML='';purchaseDraftItems.forEach(x=>{const d=document.createElement('div');d.className='purchase-item';d.innerHTML=`<div><b>${titleItem(x.ingredient)}</b><div class="small">${x.packs||1} × ${x.pack_size||x.qty} ${x.unit} = ${x.qty} ${x.unit} • ${money(x.amount)} • Update price: ${x.update_price?'Yes':'No'}</div></div><button type="button" class="remove-mini">×</button>`;d.querySelector('button').onclick=()=>{purchaseDraftItems=purchaseDraftItems.filter(y=>y.id!==x.id);renderPurchaseDraft()};box.appendChild(d)})}
 function renderPurchases(){const box=document.getElementById('purchasesList');if(!box)return;box.innerHTML='';const rows=[...S.purchases].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));if(!rows.length){box.innerHTML='<div class="card muted">No purchases synced yet.</div>';return}rows.forEach(p=>{const d=document.createElement('div');d.className='list-item';d.innerHTML=`<div class="list-top"><b>${p.supplier||'Supplier'}</b><span class="money">${money(p.total_amount)}</span></div><div>${p.invoice_no||'No receipt number'}</div><div class="small">${p.date||''} • ${(p.items||[]).length} item(s) • ${p.attachment_count||0} attachment(s)</div>`;box.appendChild(d)})}
-function resetPurchaseForm(){purchaseDraftItems=[];purchaseDraftAttachments=[];document.getElementById('purSupplier').value='';document.getElementById('purInvoice').value='';document.getElementById('purDate').value=todayIso();document.getElementById('purTotal').value='0';document.getElementById('purAttachment').value='';document.getElementById('purAttachmentInfo').textContent='Optional. Images are compressed before sync. Large PDFs may need to be attached on the laptop.';renderPurchaseDraft();renderPurchaseIngredientOptions()}
+function resetPurchaseForm(){purchaseDraftItems=[];purchaseDraftAttachments=[];document.getElementById('purSupplier').value='';document.getElementById('purInvoice').value='';document.getElementById('purDate').value=todayIso();document.getElementById('purTotal').value='0';document.getElementById('purPacks').value='1';document.getElementById('purPackSize').value='';document.getElementById('purAmount').value='';document.getElementById('purTotalQty').textContent='0';document.getElementById('purAttachment').value='';document.getElementById('purAttachmentInfo').textContent='Optional. Images are compressed before sync. Large PDFs may need to be attached on the laptop.';renderPurchaseDraft();renderPurchaseIngredientOptions()}
 document.getElementById('newPurchaseBtn').onclick=()=>{resetPurchaseForm();go('newPurchase')};
-document.getElementById('purAddItem').onclick=()=>{const id=document.getElementById('purIngredient').value;const ing=S.ingredients.find(i=>i.id===id);if(!ing){alert('Choose an ingredient.');return}const qty=Number(document.getElementById('purQty').value||0),amount=Number(document.getElementById('purAmount').value||0);if(!(qty>0)||amount<0){alert('Enter a valid quantity and amount.');return}purchaseDraftItems.push({id:uid(),ingredient_id:ing.id,ingredient:ing.name,qty,unit:document.getElementById('purUnit').value,amount,update_price:document.getElementById('purUpdatePrice').checked});document.getElementById('purQty').value='';document.getElementById('purAmount').value='';renderPurchaseDraft()};
+function updatePurchaseTotalQty(){
+  const packs=Number(document.getElementById('purPacks').value||0);
+  const size=Number(document.getElementById('purPackSize').value||0);
+  const unit=document.getElementById('purUnit').value;
+  const total=packs*size;
+  document.getElementById('purTotalQty').textContent=(Number.isFinite(total)?Math.round(total*100)/100:0)+' '+unit;
+}
+['purPacks','purPackSize','purUnit'].forEach(id=>document.getElementById(id).addEventListener('input',updatePurchaseTotalQty));
+document.getElementById('purIngredient').addEventListener('change',()=>{
+  const ing=S.ingredients.find(i=>i.id===document.getElementById('purIngredient').value);
+  if(!ing)return;
+  if(Number(ing.buy_qty||0)>0)document.getElementById('purPackSize').value=Number(ing.buy_qty);
+  document.getElementById('purUnit').value=ing.buy_unit||'g';
+  updatePurchaseTotalQty();
+});
+document.getElementById('purNewIngredient').onclick=()=>{
+  const name=prompt('New ingredient name');
+  if(!name||!name.trim())return;
+  const sizeRaw=prompt('Default pack size (optional). Example: 180');
+  if(sizeRaw===null)return;
+  const size=sizeRaw.trim()===''?0:Number(sizeRaw);
+  if(!Number.isFinite(size)||size<0){alert('Enter a valid pack size.');return}
+  const unit=prompt('Unit: g, kg, ml, L or pcs','g')||'g';
+  const allowed=['g','kg','ml','L','pcs'];
+  if(!allowed.includes(unit)){alert('Use g, kg, ml, L or pcs.');return}
+  const existing=S.ingredients.find(i=>String(i.name||'').toLowerCase()===name.trim().toLowerCase());
+  const ing=existing||{id:'phone-ing-'+uid(),name:name.trim(),buy_qty:size,buy_unit:unit,buy_price:0,stock_qty:0,stock_unit:unit,new_ingredient:true};
+  if(!existing)S.ingredients.push(ing);
+  renderPurchaseIngredientOptions();
+  document.getElementById('purIngredient').value=ing.id;
+  document.getElementById('purPackSize').value=size||'';
+  document.getElementById('purUnit').value=unit;
+  updatePurchaseTotalQty();
+};
+document.getElementById('purAddItem').onclick=()=>{
+  const id=document.getElementById('purIngredient').value;
+  const ing=S.ingredients.find(i=>i.id===id);
+  if(!ing){alert('Choose an ingredient or add a new one.');return}
+  const packs=Number(document.getElementById('purPacks').value||0);
+  const packSize=Number(document.getElementById('purPackSize').value||0);
+  const qty=packs*packSize;
+  const amount=Number(document.getElementById('purAmount').value||0);
+  if(!(packs>0)||!(packSize>0)||!(qty>0)||amount<0){alert('Enter valid packs, pack size and amount.');return}
+  purchaseDraftItems.push({
+    id:uid(),ingredient_id:ing.id,ingredient:ing.name,
+    packs,pack_size:packSize,qty,unit:document.getElementById('purUnit').value,
+    amount,update_price:document.getElementById('purUpdatePrice').checked,
+    new_ingredient:!!ing.new_ingredient
+  });
+  document.getElementById('purPacks').value='1';
+  document.getElementById('purPackSize').value='';
+  document.getElementById('purAmount').value='';
+  updatePurchaseTotalQty();renderPurchaseDraft();
+};
 async function fileToSyncAttachment(file){if(!file)return null;if(file.type.startsWith('image/')){return await new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const max=1400,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.72);URL.revokeObjectURL(url);resolve({name:(file.name||'receipt').replace(/\.[^.]+$/,'')+'.jpg',type:'image/jpeg',data_url:data})}catch(e){reject(e)}};img.onerror=reject;img.src=url})}if(file.size>2500000)throw new Error('This PDF is over 2.5 MB. Please attach it from the laptop instead.');return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({name:file.name||'receipt.pdf',type:file.type||'application/pdf',data_url:r.result});r.onerror=reject;r.readAsDataURL(file)})}
 document.getElementById('purAttachment').addEventListener('change',async e=>{purchaseDraftAttachments=[];const file=e.target.files?.[0];if(!file)return;try{const a=await fileToSyncAttachment(file);if(a)purchaseDraftAttachments=[a];document.getElementById('purAttachmentInfo').textContent=`Attached: ${file.name}. It will transfer to the laptop on Sync Now.`}catch(err){alert(err.message);e.target.value=''}});
 document.getElementById('savePurchaseBtn').onclick=()=>{const supplier=document.getElementById('purSupplier').value.trim(),invoice=document.getElementById('purInvoice').value.trim(),date=document.getElementById('purDate').value||todayIso(),total=Number(document.getElementById('purTotal').value||0);if(!supplier||!invoice){alert('Supplier and receipt/invoice number are required.');return}if(!purchaseDraftItems.length){alert('Add at least one purchased ingredient.');return}const p={phone_sync_id:uid(),supplier,invoice_no:invoice,date,total_amount:total,items:purchaseDraftItems.map(x=>({...x})),attachments:purchaseDraftAttachments.map(x=>({...x})),created:nowIso()};S.purchases.unshift({...p,attachment_count:p.attachments.length});markPurchase(p);save();alert('Purchase saved on phone. Stock and prices will update on the laptop after Sync Now.');resetPurchaseForm();go('purchases')};
@@ -599,7 +652,7 @@ document.getElementById('forgetLaptop').onclick=()=>{
 document.getElementById('syncNow').onclick=async()=>{
   try{
     if(!(S.lan&&S.lan.token&&S.lan.server)){alert('Pair this phone first.');return}
-    const payload={schema:'sugar_canvas_phone_changes',version:9,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
+    const payload={schema:'sugar_canvas_phone_changes',version:10,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
     const enc=b64urlJson(payload);
     if(enc.length>70000){alert('There are too many unsynced changes for Wi-Fi bridge sync. Use Backup File Sync once, then continue with Wi-Fi sync.');return}
     const ts=Math.floor(Date.now()/1000).toString();
@@ -610,7 +663,7 @@ document.getElementById('syncNow').onclick=async()=>{
 };
 
 document.getElementById('exportLaptop').onclick=()=>{
-  const payload={schema:'sugar_canvas_phone_changes',version:9,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
+  const payload={schema:'sugar_canvas_phone_changes',version:10,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);

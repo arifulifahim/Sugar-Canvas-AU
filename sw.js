@@ -1,5 +1,5 @@
 
-const CACHE='sugar-canvas-phone-v10-purchases';
+const CACHE='sugar-canvas-phone-v11-purchase-packs';
 const ASSETS=['./','index.html','app.css','app.js','manifest.webmanifest','logo-96.png','logo-192.png','logo-512.png','sugar-canvas-logo.png'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
