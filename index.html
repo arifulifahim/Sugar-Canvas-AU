@@ -27,13 +27,15 @@
   <h1>Welcome</h1>
   <div class="hero-card">
     <div class="big">Quick bakery tools</div>
-    <div class="muted">Quotes, orders, customers and 30-day history on your phone.</div>
+    <div class="muted">Quotes, orders, customers, recipes and 30-day history on your phone.</div>
   </div>
   <div class="home-grid">
     <button class="tile" data-go="cake"><span>🎂</span><b>New Cake Quote</b></button>
     <button class="tile" data-go="donut"><span>🍩</span><b>New Donut Quote</b></button>
     <button class="tile" data-go="orders"><span>📋</span><b>Orders</b></button>
     <button class="tile" data-go="customers"><span>👤</span><b>Customers</b></button>
+    <button class="tile" data-go="recipes"><span>📖</span><b>Recipes</b></button>
+    <button class="tile" data-go="purchases"><span>🧾</span><b>Purchases</b></button>
     <button class="tile" data-go="sync"><span>↕</span><b>Sync</b></button>
   </div>
   <div class="summary" id="homeSummary"></div>
@@ -70,6 +72,15 @@
     </div>
 
     <label>Delivery date<input id="cakeDate" type="date"></label>
+    <label>Delivery needed?
+      <select id="cakeDeliveryNeeded">
+        <option value="no">No — Pickup</option>
+        <option value="yes">Yes — Delivery</option>
+      </select>
+    </label>
+    <label id="cakeDeliveryChargeWrap" hidden>Delivery charge ($)
+      <input id="cakeDeliveryCharge" type="number" value="0" min="0" step="0.50">
+    </label>
     <label>Notes<textarea id="cakeNote" rows="3" placeholder="Colour, writing, customer request..."></textarea></label>
   </div>
 
@@ -77,8 +88,9 @@
     <div><span>Full Cake Cost</span><b id="cakeCost">$0.00</b></div>
     <div><span>Add-On Cost</span><b id="cakeAddonTotal">$0.00</b></div>
     <label class="profit-picker">Profit %
-      <input id="cakeProfitPct" type="number" value="80" min="80" step="5">
+      <input id="cakeProfitPct" type="number" value="80" inputmode="decimal" step="1">
     </label>
+    <div class="small profit-help">Default 80%. Clear it and type any higher percentage. Minimum allowed is 80%.</div>
     <div><span>Calculated Selling Price</span><b id="cakeSellingPrice">$0</b></div>
   </div>
 
@@ -96,7 +108,8 @@
     <div class="receipt-rule"></div>
     <div class="receipt-line strong"><span>Total Cost</span><b id="reviewTotalCost">$0.00</b></div>
     <div class="receipt-line"><span>Profit %</span><b id="reviewProfitPct">80%</b></div>
-    <div class="receipt-line suggested"><span>Calculated Selling Price</span><b id="reviewSellingPrice">$0</b></div>
+    <div class="receipt-line"><span>Delivery Charge</span><b id="reviewDeliveryCharge">$0.00</b></div>
+    <div class="receipt-line suggested"><span>Calculated Customer Price</span><b id="reviewSellingPrice">$0</b></div>
   </div>
 
   <div class="card form">
@@ -109,6 +122,7 @@
     <button id="saveCakeQuote">Save Quote</button>
     <button id="confirmCakeOrder">Confirm Order</button>
   </div>
+  <button id="cancelCakeEdit" class="secondary wide" hidden>Cancel Editing</button>
 </section>
 
 <section id="donut" class="page">
@@ -128,15 +142,27 @@
     </label>
     <label>Flavours / notes<textarea id="donutFlavours" rows="3" placeholder="Nutella, pistachio, custard..."></textarea></label>
     <label>Delivery date<input id="donutDate" type="date"></label>
+    <label>Delivery needed?
+      <select id="donutDeliveryNeeded">
+        <option value="no">No — Pickup</option>
+        <option value="yes">Yes — Delivery</option>
+      </select>
+    </label>
+    <label id="donutDeliveryChargeWrap" hidden>Delivery charge ($)
+      <input id="donutDeliveryCharge" type="number" value="0" min="0" step="0.50">
+    </label>
     <label>Deposit ($)<input id="donutDeposit" type="number" value="0" min="0" step="0.5"></label>
   </div>
   <div class="price-card">
-    <div><span>Menu price</span><b id="donutPrice">$0.00</b></div>
+    <div><span>Menu price</span><b id="donutBasePrice">$0.00</b></div>
+    <div><span>Delivery charge</span><b id="donutDeliveryPrice">$0.00</b></div>
+    <div><span>Customer price</span><b id="donutPrice">$0.00</b></div>
   </div>
   <div class="action-row">
     <button id="saveDonutQuote">Save Quote</button>
     <button id="confirmDonutOrder">Confirm Order</button>
   </div>
+  <button id="cancelDonutEdit" class="secondary wide" hidden>Cancel Editing</button>
 </section>
 
 <section id="orders" class="page">
@@ -151,10 +177,63 @@
   <div id="ordersList" class="list"></div>
 </section>
 
+<section id="orderDetail" class="page">
+  <div class="page-head"><button class="back" data-go="orders">←</button><h1>Order Details</h1></div>
+  <div id="orderDetailContent"></div>
+  <div class="action-row">
+    <button id="editOrderBtn">Edit Order</button>
+    <button id="deleteOrderBtn" class="danger">Delete Order</button>
+  </div>
+</section>
+
 <section id="customers" class="page">
   <div class="page-head"><button class="back" data-go="home">←</button><h1>Customers</h1></div>
   <button id="addCustomerBtn">+ Add Customer</button>
   <div id="customersList" class="list"></div>
+</section>
+
+
+<section id="recipes" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Recipes</h1></div>
+  <div class="card form">
+    <label>Search recipes<input id="recipeSearch" type="search" placeholder="Search cake, frosting, add-on..."></label>
+    <label>Recipe type<select id="recipeTypeFilter"><option value="">All Types</option><option value="Cake">Cake</option><option value="Add-On">Add-On</option></select></label>
+    <div class="small">Read-only on the phone. Edit recipes on the laptop, then sync.</div>
+  </div>
+  <div id="recipesList" class="list"></div>
+</section>
+<section id="recipeDetail" class="page">
+  <div class="page-head"><button class="back" data-go="recipes">←</button><h1>Recipe Details</h1></div>
+  <div id="recipeDetailContent"></div>
+</section>
+
+
+<section id="purchases" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Purchases</h1></div>
+  <button id="newPurchaseBtn">+ New Supplier Purchase</button>
+  <div class="card small">Purchase entries are saved on this phone and applied to stock when they sync to the laptop.</div>
+  <div id="purchasesList" class="list"></div>
+</section>
+<section id="newPurchase" class="page">
+  <div class="page-head"><button class="back" data-go="purchases">←</button><h1>New Purchase</h1></div>
+  <div class="card form">
+    <label>Supplier<input id="purSupplier" placeholder="Woolworths, Winc, Spotlight..."></label>
+    <label>Receipt / Invoice Number<input id="purInvoice" placeholder="Receipt or invoice reference"></label>
+    <label>Date<input id="purDate" type="date"></label>
+    <label>Invoice Total ($)<input id="purTotal" type="number" min="0" step="0.01" value="0"></label>
+    <label>Attach receipt / invoice<input id="purAttachment" type="file" accept="image/*,.pdf,application/pdf" capture="environment"></label>
+    <div id="purAttachmentInfo" class="small">Optional. Images are compressed before sync. Large PDFs may need to be attached on the laptop.</div>
+  </div>
+  <div class="card form">
+    <b>Add Purchased Ingredient</b>
+    <label>Ingredient<select id="purIngredient"></select></label>
+    <div class="two"><label>Quantity<input id="purQty" type="number" min="0" step="0.01"></label><label>Unit<select id="purUnit"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select></label></div>
+    <label>Amount Paid For This Item ($)<input id="purAmount" type="number" min="0" step="0.01"></label>
+    <label class="checkline"><input id="purUpdatePrice" type="checkbox" checked> Update current recipe price</label>
+    <button id="purAddItem" type="button" class="secondary">+ Add Item</button>
+    <div id="purItemsList"></div>
+  </div>
+  <button id="savePurchaseBtn" class="wide">Save Purchase</button>
 </section>
 
 <section id="sync" class="page">
@@ -201,6 +280,8 @@
   <button data-go="home">Home</button>
   <button data-go="cake">Cake</button>
   <button data-go="orders">Orders</button>
+  <button data-go="recipes">Recipes</button>
+  <button data-go="purchases">Purchases</button>
   <button data-go="sync">Sync</button>
 </nav>
 

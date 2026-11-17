@@ -6,23 +6,46 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-let S=load();if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;
+function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function decodeB64urlJson(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0)));return JSON.parse(new TextDecoder().decode(bytes))}
 async function hmacHex(secret,msg){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(msg));return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.recipes=p.recipes||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
+function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
   const changedCustomers=new Set(Object.keys(S.changes.customers||{}));const changedOrders=new Set(Object.keys(S.changes.orders||{}));
   const byCid=new Map(S.customers.map(c=>[c.phone_sync_id||c.id,c]));(p.customers||[]).forEach(c=>{const id=c.phone_sync_id||c.id;if(clearChanges||!changedCustomers.has(id))byCid.set(id,c)});S.customers=[...byCid.values()];
   const byOid=new Map(S.orders.map(o=>[o.phone_sync_id||o.id||o.order_no,o]));(p.orders||[]).forEach(o=>{const id=o.phone_sync_id||o.id||o.order_no;if(clearChanges||!changedOrders.has(id))byOid.set(id,o)});S.orders=[...byOid.values()];
-  if(clearChanges)S.changes={customers:{},orders:{}};S.last_sync=new Date().toLocaleString();prune();}
+  if(clearChanges)S.changes={customers:{},orders:{},purchases:{}};S.last_sync=new Date().toLocaleString();prune();}
 function currentReturnUrl(){return location.origin+location.pathname}
 function handleLanReturn(){const raw=location.hash||'';if(!raw.startsWith('#lanPair=')&&!raw.startsWith('#lanSync='))return false;try{const pair=raw.startsWith('#lanPair=');const value=raw.substring(pair?9:9);const data=decodeB64urlJson(value);if(!data.ok)throw new Error('Sync failed');if(pair){S.lan={server:data.server||'',token:data.token||'',device_id:data.device_id||S.device_id,device_name:S.lan?.device_name||'Phone'};applyLaptopSnapshot(data.snapshot,true);alert('Phone paired successfully. Future Wi-Fi syncs will not need the pairing code.')}else{applyLaptopSnapshot(data.snapshot,true);alert('Sugar Canvas synced successfully.');}history.replaceState(null,'',location.pathname+location.search);localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){history.replaceState(null,'',location.pathname+location.search);alert('Could not finish Wi-Fi sync: '+e.message);return false}}
 
 function markCustomer(c){S.changes.customers[c.phone_sync_id||c.id]=c}
 function markOrder(o){S.changes.orders[o.phone_sync_id]=o}
+function markPurchase(p){S.changes.purchases[p.phone_sync_id]=p}
+function orderKey(o){return String(o?.phone_sync_id||o?.id||o?.order_no||'')}
+function findOrder(id){return S.orders.find(o=>orderKey(o)===String(id||''))}
+function isDonutOrder(o){return /donut|bomboloni|ring/i.test(String(o?.item||'')) && !String(o?.recipe||'').trim()}
+function setDeliveryFields(prefix,needed,charge){
+  const sel=document.getElementById(prefix+'DeliveryNeeded');
+  const input=document.getElementById(prefix+'DeliveryCharge');
+  const wrap=document.getElementById(prefix+'DeliveryChargeWrap');
+  if(!sel||!input||!wrap)return;
+  sel.value=needed?'yes':'no';
+  input.value=Number(charge||0);
+  wrap.hidden=!needed;
+}
+function clearEditMode(){
+  S.editingOrderId='';
+  document.getElementById('cancelCakeEdit').hidden=true;
+  document.getElementById('cancelDonutEdit').hidden=true;
+  document.getElementById('saveCakeQuote').textContent='Save Quote';
+  document.getElementById('confirmCakeOrder').textContent='Confirm Order';
+  document.getElementById('saveDonutQuote').textContent='Save Quote';
+  document.getElementById('confirmDonutOrder').textContent='Confirm Order';
+}
+
 function prune(){
   const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
   S.orders=S.orders.filter(o=>{
@@ -48,8 +71,16 @@ function packagingOptions(){
   S.packaging.forEach(p=>{let o=document.createElement('option');o.value=p.id;o.textContent=`${titleItem(p.name)} (${money(p.total_cost)})`;sel.appendChild(o)});if([...sel.options].some(o=>o.value===old))sel.value=old;
 }
 
-function addonCostFor(recipe,w,q){
-  return Number(recipe?.base_cost||0)*(Number(w||500)/Number(recipe?.base_weight_g||500))*Number(q||1)
+function addonRawCostFor(recipe,w,q){
+  return Number(recipe?.base_cost||0)*(Number(w||500)/Number(recipe?.base_weight_g||500))*Number(q||1);
+}
+function adjustedAddonCost(rawCost){
+  const raw=Math.max(0,Number(rawCost||0));
+  return (raw*1.5)+2;
+}
+function adjustedPackagingCost(rawCost){
+  const raw=Math.max(0,Number(rawCost||0));
+  return raw*1.5;
 }
 function getSelectedAddonRows(){
   const w=Number(document.getElementById('cakeWeight').value||500);
@@ -57,10 +88,15 @@ function getSelectedAddonRows(){
   const recipeRows=(S.cakeDraft.addons||[]).map(id=>{
     const r=S.recipes.find(x=>x.id===id);
     if(!r)return null;
-    const cost=addonCostFor(r,w,q);
-    return {id:r.id,item:r.name,recipe:r.name,item_type:'Add-On',quantity:q,target_weight_g:w,base_cost:cost,cost:cost,manual:false};
+    const rawCost=addonRawCostFor(r,w,q);
+    const adjustedCost=adjustedAddonCost(rawCost);
+    return {id:r.id,item:r.name,recipe:r.name,item_type:'Add-On',quantity:q,target_weight_g:w,raw_cost:rawCost,base_cost:adjustedCost,cost:adjustedCost,manual:false};
   }).filter(Boolean);
-  const custom=(S.cakeDraft.customAddons||[]).map(x=>({id:x.id,item:x.name,item_type:'Add-On',quantity:1,target_weight_g:w,base_cost:Number(x.cost||0),cost:Number(x.cost||0),manual:true}));
+  const custom=(S.cakeDraft.customAddons||[]).map(x=>{
+    const rawCost=Math.max(0,Number(x.cost||0));
+    const adjustedCost=adjustedAddonCost(rawCost);
+    return {id:x.id,item:x.name,item_type:'Add-On',quantity:1,target_weight_g:w,raw_cost:rawCost,base_cost:adjustedCost,cost:adjustedCost,manual:true};
+  });
   return [...recipeRows,...custom];
 }
 function renderAddonChoices(){
@@ -74,7 +110,8 @@ function renderAddonChoices(){
     addons.forEach(r=>{
       const selected=(S.cakeDraft.addons||[]).includes(r.id);
       const b=document.createElement('button');b.type='button';b.className='addon-chip'+(selected?' selected':'');
-      b.innerHTML=`${titleItem(r.name)}<span class="addon-price">${money(addonCostFor(r,w,q))} cost</span>`;
+      const raw=addonRawCostFor(r,w,q), adjusted=adjustedAddonCost(raw);
+      b.innerHTML=`${titleItem(r.name)}<span class="addon-price">${money(adjusted)} adjusted cost</span>`;
       b.onclick=()=>{
         const set=new Set(S.cakeDraft.addons||[]);
         if(set.has(r.id))set.delete(r.id);else set.add(r.id);
@@ -86,7 +123,7 @@ function renderAddonChoices(){
   const selectedBox=document.getElementById('selectedAddons');selectedBox.innerHTML='';
   getSelectedAddonRows().forEach(a=>{
     const row=document.createElement('div');row.className='selected-addon-row';
-    row.innerHTML=`<div><b>${titleItem(a.item)}</b><div class="small">${a.manual?'Manual Custom Add-On Cost':`${Math.round(a.target_weight_g)}g cake`}</div></div><div><b>${money(a.base_cost)}</b> <button class="remove-mini" type="button">×</button></div>`;
+    row.innerHTML=`<div><b>${titleItem(a.item)}</b><div class="small">${a.manual?'Custom Add-On':`${Math.round(a.target_weight_g)}g cake`} • raw ${money(a.raw_cost)} + 50% + $2</div></div><div><b>${money(a.base_cost)}</b> <button class="remove-mini" type="button">×</button></div>`;
     row.querySelector('button').onclick=()=>{
       if(a.manual)S.cakeDraft.customAddons=(S.cakeDraft.customAddons||[]).filter(x=>x.id!==a.id);
       else S.cakeDraft.addons=(S.cakeDraft.addons||[]).filter(id=>id!==a.id);
@@ -95,45 +132,106 @@ function renderAddonChoices(){
     selectedBox.appendChild(row);
   });
 }
-function normaliseProfitPct(){
+function getProfitPct({validate=false}={}){
   const input=document.getElementById('cakeProfitPct');
-  let pct=Number(input.value||80);
-  if(!Number.isFinite(pct)||pct<80)pct=80;
-  input.value=String(pct);
+  const raw=String(input.value||'').trim();
+
+  if(raw===''){
+    if(validate){
+      alert('Profit percentage cannot be blank. Minimum profit is 80%.');
+      input.focus();
+    }
+    return null;
+  }
+
+  const pct=Number(raw);
+  if(!Number.isFinite(pct)){
+    if(validate){
+      alert('Please enter a valid profit percentage.');
+      input.focus();
+      input.select();
+    }
+    return null;
+  }
+
+  if(pct<80){
+    if(validate){
+      alert('Minimum profit is 80%. Please enter 80% or more.');
+      input.focus();
+      input.select();
+    }
+    return null;
+  }
+
   S.cakeDraft.profitPct=pct;
   localStorage.setItem(KEY,JSON.stringify(S));
   return pct;
 }
-function roundSellingUp(n){return Math.ceil(Number(n||0));}
 
+function roundSellingUp(n){return Math.ceil(Number(n||0));}
+function minimumSellingPrice80(totalCost){return roundSellingUp(Number(totalCost||0)*1.8);}
+
+function getDeliveryCharge(prefix){
+  const needed=document.getElementById(prefix+'DeliveryNeeded')?.value==='yes';
+  if(!needed)return 0;
+  return Math.max(0,Number(document.getElementById(prefix+'DeliveryCharge')?.value||0));
+}
+function updateDeliveryVisibility(prefix){
+  const needed=document.getElementById(prefix+'DeliveryNeeded')?.value==='yes';
+  const wrap=document.getElementById(prefix+'DeliveryChargeWrap');
+  if(wrap)wrap.hidden=!needed;
+  if(!needed){
+    const input=document.getElementById(prefix+'DeliveryCharge');
+    if(input)input.value='0';
+  }
+}
 function cakeCalc(){
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
-  const w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
+  const w=Number(document.getElementById('cakeWeight').value||500);
+  const q=Number(document.getElementById('cakeQty').value||1);
   const p=S.packaging.find(x=>x.id===document.getElementById('cakePackaging').value);
-  const pack=Number(p?.total_cost||0);
+
+  const rawPack=Number(p?.total_cost||0);
+  const pack=adjustedPackagingCost(rawPack);
   const customizationCost=Math.max(0,Number(document.getElementById('cakeCustomizationCost').value||0));
+
   const addonRows=getSelectedAddonRows();
   const addonCost=addonRows.reduce((a,x)=>a+Number(x.base_cost||0),0);
-  const pct=normaliseProfitPct();
+
   const recipeCost=r ? Number(r.base_cost||0)*(w/Number(r.base_weight_g||500))*q : 0;
   const cost=recipeCost+addonCost+pack+customizationCost;
-  const selling=roundSellingUp(cost*(1+pct/100));
+
+  const pct=getProfitPct({validate:false});
+  const selling=pct===null ? null : roundSellingUp(cost*(1+pct/100));
+  const deliveryCharge=getDeliveryCharge('cake');
+  const customerPrice=selling===null ? null : selling+deliveryCharge;
+
   document.getElementById('cakeCost').textContent=money(cost);
   document.getElementById('cakeAddonTotal').textContent=money(addonCost);
-  document.getElementById('cakeSellingPrice').textContent='$'+selling.toFixed(0);
-  return {cost,selling,profitPct:pct,pack,recipe:r,packaging:p,recipeCost,addonRows,addonCost,customizationCost};
+  document.getElementById('cakeSellingPrice').textContent=customerPrice===null?'—':'$'+Number(customerPrice).toFixed(0);
+
+  return {
+    cost,selling,customerPrice,deliveryCharge,profitPct:pct,
+    rawPack,pack,recipe:r,packaging:p,recipeCost,
+    addonRows,addonCost,customizationCost
+  };
 }
 
-['cakeRecipe','cakeWeight','cakeQty','cakePackaging','cakeCustomizationCost'].forEach(id=>
+['cakeRecipe','cakeWeight','cakeQty','cakePackaging','cakeCustomizationCost','cakeDeliveryCharge'].forEach(id=>
   document.getElementById(id).addEventListener('input',()=>{renderAddonChoices();cakeCalc()})
 );
+
 document.getElementById('cakeProfitPct').addEventListener('input',()=>{cakeCalc()});
-document.getElementById('cakeProfitPct').addEventListener('change',()=>{normaliseProfitPct();cakeCalc()});
+document.getElementById('cakeProfitPct').addEventListener('blur',()=>{
+  const pct=getProfitPct({validate:true});
+  if(pct!==null)cakeCalc();
+});
+document.getElementById('cakeDeliveryNeeded').addEventListener('change',()=>{updateDeliveryVisibility('cake');cakeCalc()});
 
 document.getElementById('addCustomAddon').onclick=()=>{
   const name=prompt('Custom add-on description, for example Fresh Flowers or Special Topper');
   if(!name)return;
-  const raw=prompt('What does this add-on COST you? ($)');
+  const raw=prompt('What is the RAW cost of this add-on to you? The app will add 50% + $2. ($)');
   if(raw===null)return;
   const cost=Number(String(raw).replace('$','').replace(',',''));
   if(!Number.isFinite(cost)||cost<0){alert('Enter a valid cost.');return}
@@ -146,12 +244,21 @@ function buildCakeReceipt(){
   const customer=document.getElementById('cakeCustomer').value;
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
   if(!customer||!r){alert('Choose customer and cake first.');return null}
+  const pct=getProfitPct({validate:true});if(pct===null)return null;
   const calc=cakeCalc(),w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
   const lines=[{name:`${titleItem(r.name)} • ${Math.round(w)}g`,cost:calc.recipeCost,kind:'Cake Cost'}];
-  calc.addonRows.forEach(a=>lines.push({name:titleItem(a.item),cost:Number(a.base_cost||0),kind:'Add-On Cost'}));
-  if(calc.packaging&&calc.pack>0)lines.push({name:titleItem(calc.packaging.name),cost:calc.pack,kind:'Packaging Cost'});
+  calc.addonRows.forEach(a=>lines.push({
+    name:titleItem(a.item),
+    cost:Number(a.base_cost||0),
+    kind:`Add-On Adjusted Cost • raw ${money(a.raw_cost)} + 50% + $2`
+  }));
+  if(calc.packaging&&calc.pack>0)lines.push({
+    name:titleItem(calc.packaging.name),
+    cost:calc.pack,
+    kind:`Packaging Adjusted Cost • raw ${money(calc.rawPack)} + 50%`
+  });
   if(calc.customizationCost>0)lines.push({name:'Customization',cost:calc.customizationCost,kind:'Customization Cost'});
-  return {customer,r,calc,w,q,lines,totalCost:calc.cost,selling:calc.selling,profitPct:calc.profitPct};
+  return {customer,r,calc,w,q,lines,totalCost:calc.cost,selling:calc.selling,customerPrice:calc.customerPrice,deliveryCharge:calc.deliveryCharge,profitPct:calc.profitPct};
 }
 
 function renderCakeReview(){
@@ -177,8 +284,37 @@ function updateReviewProfit(){
   document.getElementById('reviewProfit').textContent=money(final-Number(calc.cost||0));
 }
 
+function validateFinalCustomerPrice(){
+  const calc=cakeCalc();
+  const input=document.getElementById('cakeFinalPrice');
+  const raw=String(input.value||'').trim();
+  if(raw==='')return true;
+
+  const final=Number(raw);
+  if(!Number.isFinite(final)){
+    alert('Please enter a valid final customer price.');
+    input.focus();
+    input.select();
+    return false;
+  }
+
+  const minPrice=minimumSellingPrice80(calc.cost)+Number(calc.deliveryCharge||0);
+  if(final<minPrice){
+    alert(`This price is below the minimum 80% profit level. Minimum customer price for this cake is $${minPrice}.`);
+    input.focus();
+    input.select();
+    return false;
+  }
+  return true;
+}
+
 document.getElementById('cakeFinalPrice').addEventListener('input',e=>{e.target.dataset.manual='1';updateReviewProfit()});
-document.getElementById('reviewCakePrice').onclick=()=>{if(renderCakeReview())go('cakeReview')};
+document.getElementById('cakeFinalPrice').addEventListener('blur',()=>{validateFinalCustomerPrice()});
+document.getElementById('reviewCakePrice').onclick=()=>{
+  const pct=getProfitPct({validate:true});
+  if(pct===null)return;
+  if(renderCakeReview())go('cakeReview');
+};
 
 function addCustomer(){
   const name=prompt('Customer name');if(!name)return null;const phone=prompt('Phone number (optional)')||'';const address=prompt('Address (optional)')||'';
@@ -189,40 +325,235 @@ function saveCake(status){
   const customer=document.getElementById('cakeCustomer').value;
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
   if(!customer||!r){alert('Choose customer and cake.');return}
+  const pct=getProfitPct({validate:true});if(pct===null)return;
+  if(!validateFinalCustomerPrice())return;
   const calc=cakeCalc(),w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
-  const price=Number(document.getElementById('cakeFinalPrice').value||calc.selling);
+  const price=Number(document.getElementById('cakeFinalPrice').value||calc.customerPrice);
   const dep=Number(document.getElementById('cakeDeposit').value||0);
+
   const cakeLine={item:r.name,recipe:r.name,item_type:'Cake',quantity:q,target_weight_g:w,base_cost:calc.recipeCost,packaging_type:'',packaging_cost:0,customisation:0,price:0};
-  const addonLines=calc.addonRows.map(a=>({item:a.item,recipe:a.recipe||'',recipe_id:a.id||'',item_type:'Add-On',quantity:a.quantity||1,target_weight_g:w,base_cost:Number(a.base_cost||0),packaging_type:'None',packaging_cost:0,customisation:0,price:0,manual_custom_addon:!!a.manual}));
+  const addonLines=calc.addonRows.map(a=>({
+    item:a.item,recipe:a.recipe||'',recipe_id:a.id||'',item_type:'Add-On',
+    quantity:a.quantity||1,target_weight_g:w,raw_cost:Number(a.raw_cost||0),
+    base_cost:Number(a.base_cost||0),packaging_type:'None',packaging_cost:0,
+    customisation:0,price:0,manual_custom_addon:!!a.manual
+  }));
+
   const receipt=buildCakeReceipt();
-  const o={phone_sync_id:uid(),customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,date:document.getElementById('cakeDate').value||todayIso(),base_cost:calc.cost,cost:calc.cost,packaging_type:calc.packaging?.name||'',packaging_cost:calc.pack,customisation:calc.customizationCost,addon_cost:calc.addonCost,profit_percent:calc.profitPct,calculated_selling_price:calc.selling,price,deposit:dep,status,workflow_status:status==='Confirmed'?'Confirmed':'',note:document.getElementById('cakeNote').value,created:todayIso(),modified_at:nowIso(),price_breakdown:receipt?.lines||[],items:[cakeLine,...addonLines]};
-  S.orders.unshift(o);markOrder(o);
+  const existing=S.editingOrderId?findOrder(S.editingOrderId):null;
+  const syncId=existing?orderKey(existing):uid();
+  const o={
+    ...(existing||{}),phone_sync_id:syncId,customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,
+    date:document.getElementById('cakeDate').value||todayIso(),
+    base_cost:calc.cost,cost:calc.cost,
+    packaging_type:calc.packaging?.name||'',packaging_raw_cost:calc.rawPack,packaging_cost:calc.pack,
+    customisation:calc.customizationCost,addon_cost:calc.addonCost,profit_percent:calc.profitPct,
+    calculated_selling_price:calc.selling,
+    pricing_formula_version:'v311_unified',
+    delivery_needed:document.getElementById('cakeDeliveryNeeded').value==='yes',
+    delivery_charge:calc.deliveryCharge,
+    price,deposit:dep,status,
+    workflow_status:status==='Confirmed'?'Confirmed':(existing?.workflow_status||''),
+    note:document.getElementById('cakeNote').value,
+    created:existing?.created||todayIso(),modified_at:nowIso(),
+    price_breakdown:receipt?.lines||[],items:[cakeLine,...addonLines]
+  };
+  if(existing){
+    const idx=S.orders.findIndex(x=>orderKey(x)===syncId);
+    if(idx>=0)S.orders[idx]=o;
+  }else S.orders.unshift(o);
+  markOrder(o);
   S.cakeDraft={addons:[],customAddons:[],profitPct:calc.profitPct};
   document.getElementById('cakeCustomizationCost').value='0';
+  setDeliveryFields('cake',false,0);
   document.getElementById('cakeFinalPrice').dataset.manual='';
+  clearEditMode();
   localStorage.setItem(KEY,JSON.stringify(S));renderAddonChoices();save();
-  alert(status==='Quotation'?'Quote saved on phone.':'Order confirmed and saved on phone.');
+  alert(existing?'Order updated on phone.':(status==='Quotation'?'Quote saved on phone.':'Order confirmed and saved on phone.'));
   go('orders');
 }
 document.getElementById('saveCakeQuote').onclick=()=>saveCake('Quotation');document.getElementById('confirmCakeOrder').onclick=()=>saveCake('Confirmed');
-function donutCalc(){const k=document.getElementById('donutKind').value,q=document.getElementById('donutQty').value,p=Number(S.donut_menu?.[k]?.[q]||0);document.getElementById('donutPrice').textContent=money(p);return p}
-['donutKind','donutQty'].forEach(id=>document.getElementById(id).addEventListener('change',donutCalc));
-function saveDonut(status){const customer=document.getElementById('donutCustomer').value;if(!customer){alert('Choose customer.');return}const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value),price=donutCalc(),names={bomboloni:'Bomboloni Assorted',ring_glazed:'Original Glazed Ring Donuts',ring_assorted:'Ring Donut Assorted'},dep=Number(document.getElementById('donutDeposit').value||0);
-  const o={phone_sync_id:uid(),customer,item:`${names[kind]} - ${q} pcs`,recipe:'',quantity:q,target_weight_g:0,date:document.getElementById('donutDate').value||todayIso(),base_cost:0,cost:0,packaging_type:'Donut box',packaging_cost:0,customisation:0,price,deposit:dep,status,workflow_status:status==='Confirmed'?'Confirmed':'',note:document.getElementById('donutFlavours').value,created:todayIso(),modified_at:nowIso(),items:[]};
-  S.orders.unshift(o);markOrder(o);save();alert(status==='Quotation'?'Donut quote saved.':'Donut order confirmed.');go('orders');
+document.getElementById('cancelCakeEdit').onclick=()=>{clearEditMode();S.cakeDraft={addons:[],customAddons:[],profitPct:80};save();go('orders')};
+function donutCalc(){
+  const k=document.getElementById('donutKind').value,q=document.getElementById('donutQty').value;
+  const base=Number(S.donut_menu?.[k]?.[q]||0);
+  const delivery=getDeliveryCharge('donut');
+  const total=base+delivery;
+  document.getElementById('donutBasePrice').textContent=money(base);
+  document.getElementById('donutDeliveryPrice').textContent=money(delivery);
+  document.getElementById('donutPrice').textContent=money(total);
+  return {base,delivery,total};
+}
+['donutKind','donutQty','donutDeliveryCharge'].forEach(id=>document.getElementById(id).addEventListener('input',donutCalc));
+document.getElementById('donutDeliveryNeeded').addEventListener('change',()=>{updateDeliveryVisibility('donut');donutCalc()});
+function saveDonut(status){
+  const customer=document.getElementById('donutCustomer').value;
+  if(!customer){alert('Choose customer.');return}
+  const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value);
+  const calc=donutCalc(),names={bomboloni:'Bomboloni Assorted',ring_glazed:'Original Glazed Ring Donuts',ring_assorted:'Ring Donut Assorted'};
+  const dep=Number(document.getElementById('donutDeposit').value||0);
+  const existing=S.editingOrderId?findOrder(S.editingOrderId):null;
+  const syncId=existing?orderKey(existing):uid();
+  const o={
+    ...(existing||{}),phone_sync_id:syncId,customer,item:`${names[kind]} - ${q} pcs`,recipe:'',quantity:q,target_weight_g:0,
+    date:document.getElementById('donutDate').value||todayIso(),base_cost:0,cost:0,
+    packaging_type:'Donut box',packaging_cost:0,customisation:0,
+    delivery_needed:document.getElementById('donutDeliveryNeeded').value==='yes',
+    delivery_charge:calc.delivery,price:calc.total,deposit:dep,status,
+    workflow_status:status==='Confirmed'?'Confirmed':(existing?.workflow_status||''),
+    note:document.getElementById('donutFlavours').value,donut_kind:kind,donut_menu_price:calc.base,
+    created:existing?.created||todayIso(),modified_at:nowIso(),items:[]
+  };
+  if(existing){
+    const idx=S.orders.findIndex(x=>orderKey(x)===syncId);
+    if(idx>=0)S.orders[idx]=o;
+  }else S.orders.unshift(o);
+  markOrder(o);setDeliveryFields('donut',false,0);clearEditMode();save();
+  alert(existing?'Order updated on phone.':(status==='Quotation'?'Donut quote saved.':'Donut order confirmed.'));
+  go('orders');
 }
 document.getElementById('saveDonutQuote').onclick=()=>saveDonut('Quotation');document.getElementById('confirmDonutOrder').onclick=()=>saveDonut('Confirmed');
-function renderOrders(){const list=document.getElementById('ordersList'),q=(document.getElementById('orderSearch').value||'').toLowerCase(),f=document.getElementById('orderFilter').value;list.innerHTML='';let rows=[...S.orders].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  rows=rows.filter(o=>{const st=String(o.workflow_status||o.status||'').toLowerCase();const active=!['completed','cancelled','finalised'].includes(st);if(f==='active'&&!active)return false;if(f==='quotation'&&st!=='quotation')return false;if(f==='completed'&&!['completed','finalised'].includes(st))return false;return `${o.customer} ${o.item} ${o.order_no||''}`.toLowerCase().includes(q)});
+document.getElementById('cancelDonutEdit').onclick=()=>{clearEditMode();save();go('orders')};
+function renderOrders(){
+  const list=document.getElementById('ordersList');
+  const q=(document.getElementById('orderSearch').value||'').toLowerCase();
+  const f=document.getElementById('orderFilter').value;
+  list.innerHTML='';
+  let rows=[...S.orders].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  rows=rows.filter(o=>{
+    const st=String(o.workflow_status||o.status||'').toLowerCase();
+    const active=!['completed','cancelled','finalised'].includes(st);
+    if(f==='active'&&!active)return false;
+    if(f==='quotation'&&st!=='quotation')return false;
+    if(f==='completed'&&!['completed','finalised'].includes(st))return false;
+    return `${o.customer} ${o.item} ${o.order_no||''}`.toLowerCase().includes(q);
+  });
   if(!rows.length){list.innerHTML='<div class="card muted">No orders found.</div>';return}
-  rows.forEach(o=>{const d=document.createElement('div');d.className='list-item';d.innerHTML=`<div class="list-top"><b>${o.customer||'Customer'}</b><span class="status">${o.workflow_status||o.status||''}</span></div><div>${titleItem(o.item||'Order')}</div><div class="small">${o.date||''} • ${o.order_no||'Phone order'}</div><div class="list-top"><span class="small">${o.note||''}</span><span class="money">${money(o.price)}</span></div>`;list.appendChild(d)})
+  rows.forEach(o=>{
+    const d=document.createElement('div');d.className='list-item clickable';
+    const delivery=o.delivery_needed?` • Delivery ${money(o.delivery_charge)}`:' • Pickup';
+    d.innerHTML=`<div class="list-top"><b>${o.customer||'Customer'}</b><span class="status">${o.workflow_status||o.status||''}</span></div><div>${titleItem(o.item||'Order')}</div><div class="small">${o.date||''} • ${o.order_no||'Phone order'}${delivery}</div><div class="list-top"><span class="small">${o.note||''}</span><span class="money">${money(o.price)}</span></div>`;
+    d.onclick=()=>openOrderDetail(orderKey(o));
+    list.appendChild(d);
+  });
 }
+function detailRow(label,value){return `<div class="detail-row"><span>${label}</span><b>${value===undefined||value===null||value===''?'—':value}</b></div>`}
+function openOrderDetail(id){
+  const o=findOrder(id);if(!o)return;
+  S.selectedOrderId=orderKey(o);localStorage.setItem(KEY,JSON.stringify(S));
+  const box=document.getElementById('orderDetailContent');
+  const remaining=Math.max(0,Number(o.price||0)-Number(o.deposit||0));
+  let html=`<div class="card detail-card">${detailRow('Customer',o.customer)}${detailRow('Item',titleItem(o.item||'Order'))}${detailRow('Status',o.workflow_status||o.status)}${detailRow('Delivery date',o.date)}${detailRow('Weight',Number(o.target_weight_g||0)>0?`${Number(o.target_weight_g)} g`:'—')}${detailRow('Quantity',o.quantity||1)}</div>`;
+  if(Array.isArray(o.items)&&o.items.length){
+    html+=`<div class="card detail-card"><div class="detail-section-title">Cake / Add-Ons</div>`;
+    o.items.forEach(it=>{
+      const raw=Number(it.raw_cost||0),cost=Number(it.base_cost||0);
+      html+=detailRow(titleItem(it.item||it.recipe||'Item'),raw>0&&Math.abs(raw-cost)>.001?`${money(cost)} (raw ${money(raw)})`:money(cost));
+    });
+    html+='</div>';
+  }
+  html+=`<div class="card detail-card"><div class="detail-section-title">Cost & Price</div>${detailRow('Full Cost',money(o.cost||o.base_cost||0))}${Number(o.addon_cost||0)>0?detailRow('Add-On Cost',money(o.addon_cost)):''}${Number(o.packaging_cost||0)>0?detailRow('Packaging Cost',money(o.packaging_cost)):''}${Number(o.customisation||0)>0?detailRow('Customization Cost',money(o.customisation)):''}${Number(o.profit_percent||0)>0?detailRow('Profit %',`${Number(o.profit_percent).toFixed(0)}%`):''}${detailRow('Delivery',o.delivery_needed?`Yes • ${money(o.delivery_charge)}`:'Pickup')}${detailRow('Customer Price',money(o.price))}${detailRow('Deposit',money(o.deposit))}${detailRow('Balance',money(remaining))}</div>`;
+  if(o.note)html+=`<div class="card detail-card"><div class="detail-section-title">Notes</div><div>${o.note}</div></div>`;
+  box.innerHTML=html;go('orderDetail');
+}
+function startEditOrder(id){
+  const o=findOrder(id);if(!o)return;
+  S.editingOrderId=orderKey(o);
+  if(isDonutOrder(o)){
+    const kind=o.donut_kind||(/bomboloni/i.test(o.item||'')?'bomboloni':(/glazed/i.test(o.item||'')?'ring_glazed':'ring_assorted'));
+    document.getElementById('donutCustomer').value=o.customer||'';
+    document.getElementById('donutKind').value=kind;
+    document.getElementById('donutQty').value=String(Math.round(Number(o.quantity||4)));
+    document.getElementById('donutFlavours').value=o.note||'';
+    document.getElementById('donutDate').value=o.date||todayIso();
+    document.getElementById('donutDeposit').value=Number(o.deposit||0);
+    setDeliveryFields('donut',!!o.delivery_needed,Number(o.delivery_charge||0));
+    document.getElementById('cancelDonutEdit').hidden=false;
+    document.getElementById('saveDonutQuote').textContent='Update as Quote';
+    document.getElementById('confirmDonutOrder').textContent='Update Order';
+    donutCalc();go('donut');return;
+  }
+  document.getElementById('cakeCustomer').value=o.customer||'';
+  const recipe=S.recipes.find(r=>String(r.id)===String(o.recipe_id||'')||String(r.name).toLowerCase()===String(o.recipe||o.item||'').toLowerCase());
+  if(recipe)document.getElementById('cakeRecipe').value=recipe.id;
+  document.getElementById('cakeWeight').value=Number(o.target_weight_g||500);
+  document.getElementById('cakeQty').value=Number(o.quantity||1);
+  const packaging=S.packaging.find(p=>String(p.name).toLowerCase()===String(o.packaging_type||'').toLowerCase());
+  document.getElementById('cakePackaging').value=packaging?.id||'';
+  document.getElementById('cakeCustomizationCost').value=Number(o.customisation||0);
+  document.getElementById('cakeDate').value=o.date||todayIso();
+  document.getElementById('cakeNote').value=o.note||'';
+  document.getElementById('cakeProfitPct').value=Math.max(80,Number(o.profit_percent||80));
+  document.getElementById('cakeDeposit').value=Number(o.deposit||0);
+  document.getElementById('cakeFinalPrice').value=Number(o.price||0);
+  document.getElementById('cakeFinalPrice').dataset.manual='1';
+  setDeliveryFields('cake',!!o.delivery_needed,Number(o.delivery_charge||0));
+  const addonItems=(o.items||[]).filter(it=>String(it.item_type||'').toLowerCase()==='add-on');
+  S.cakeDraft.addons=[];S.cakeDraft.customAddons=[];
+  addonItems.forEach(it=>{
+    const rid=it.recipe_id||S.recipes.find(r=>r.type==='Add-On'&&String(r.name).toLowerCase()===String(it.recipe||it.item||'').toLowerCase())?.id;
+    if(rid&&!it.manual_custom_addon)S.cakeDraft.addons.push(rid);
+    else S.cakeDraft.customAddons.push({id:it.id||uid(),name:it.item||'Custom Add-On',cost:Number(it.raw_cost||it.base_cost||0)});
+  });
+  S.cakeDraft.profitPct=Math.max(80,Number(o.profit_percent||80));
+  document.getElementById('cancelCakeEdit').hidden=false;
+  document.getElementById('saveCakeQuote').textContent='Update as Quote';
+  document.getElementById('confirmCakeOrder').textContent='Update Order';
+  renderAddonChoices();cakeCalc();go('cake');
+}
+function deleteSelectedOrder(){
+  const o=findOrder(S.selectedOrderId);if(!o)return;
+  if(!confirm(`Delete this order for ${o.customer||'customer'}? This will also delete it from the laptop after the next sync.`))return;
+  const id=orderKey(o);
+  S.orders=S.orders.filter(x=>orderKey(x)!==id);
+  S.changes.orders[id]={phone_sync_id:id,_deleted:true,modified_at:nowIso()};
+  S.selectedOrderId='';save();go('orders');
+}
+document.getElementById('editOrderBtn').onclick=()=>startEditOrder(S.selectedOrderId);
+document.getElementById('deleteOrderBtn').onclick=deleteSelectedOrder;
 document.getElementById('orderSearch').oninput=renderOrders;document.getElementById('orderFilter').onchange=renderOrders;
 function renderCustomers(){const list=document.getElementById('customersList');list.innerHTML='';[...S.customers].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(c=>{const d=document.createElement('div');d.className='list-item';d.innerHTML=`<b>${c.name}</b><div class="small">${c.phone||''}</div><div class="small">${c.address||''}</div>`;list.appendChild(d)});if(!S.customers.length)list.innerHTML='<div class="card muted">No customers yet.</div>'}
-function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
+function recipeKey(r){return String(r?.id||r?.name||'')}
+function findRecipeForPhone(id){return S.recipes.find(r=>recipeKey(r)===String(id||''))}
+function formatQty(v){const n=Number(v);if(Number.isFinite(n))return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);return String(v??'')}
+function escapeHtml(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function renderRecipes(){
+  const list=document.getElementById('recipesList');if(!list)return;
+  const q=String(document.getElementById('recipeSearch')?.value||'').trim().toLowerCase();
+  const type=String(document.getElementById('recipeTypeFilter')?.value||'');
+  let rows=[...S.recipes].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  rows=rows.filter(r=>{if(type&&String(r.type||'')!==type)return false;const ingredientText=(r.ingredients||[]).map(x=>x.name||'').join(' ');return `${r.name||''} ${r.type||''} ${r.description||''} ${ingredientText}`.toLowerCase().includes(q)});
+  list.innerHTML='';
+  if(!rows.length){list.innerHTML='<div class="card muted">No recipes found. Sync with the laptop if recipes are missing.</div>';return}
+  rows.forEach(r=>{const d=document.createElement('div');d.className='list-item recipe-card';const count=(r.ingredients||[]).length;d.innerHTML=`<div class="list-top"><b>${titleItem(r.name||'Recipe')}</b><span class="recipe-type">${titleItem(r.type||'Recipe')}</span></div><div class="recipe-meta"><span>${Math.round(Number(r.base_weight_g||0))} g base</span><span>${count} ingredient${count===1?'':'s'}</span><span>Cost ${money(r.base_cost)}</span></div>${r.description?`<div class="small">${escapeHtml(String(r.description).slice(0,120))}${String(r.description).length>120?'…':''}</div>`:''}`;d.onclick=()=>openRecipeDetail(recipeKey(r));list.appendChild(d)})
+}
+function openRecipeDetail(id){
+  const r=findRecipeForPhone(id);if(!r)return;S.selectedRecipeId=recipeKey(r);localStorage.setItem(KEY,JSON.stringify(S));
+  const box=document.getElementById('recipeDetailContent');if(!box)return;const ingredients=Array.isArray(r.ingredients)?r.ingredients:[];
+  let html=`<div class="card detail-card"><div class="list-top"><h2 style="margin:0">${titleItem(r.name||'Recipe')}</h2><span class="recipe-type">${titleItem(r.type||'Recipe')}</span></div>${detailRow('Base Weight / Yield',`${formatQty(r.base_weight_g||0)} g`)}${detailRow('Current Recipe Cost',money(r.base_cost))}${r.updated?detailRow('Last Updated',r.updated):''}</div>`;
+  html+=`<div class="card detail-card"><div class="detail-section-title">Ingredients</div>`;
+  if(!ingredients.length)html+='<div class="muted">No ingredients saved in this recipe.</div>';else{html+='<table class="ingredient-table"><thead><tr><th>Ingredient</th><th>Amount</th><th>Cost</th></tr></thead><tbody>';ingredients.forEach(line=>{html+=`<tr><td>${titleItem(line.name||'Ingredient')}</td><td>${escapeHtml(`${formatQty(line.used_qty)} ${line.used_unit||''}`.trim())}</td><td>${money(line.cost)}</td></tr>`});html+='</tbody></table>'}html+='</div>';
+  html+=`<div class="card detail-card"><div class="detail-section-title">Description / Notes</div><div class="recipe-description">${r.description?escapeHtml(r.description).replace(/\n/g,'<br>'):'No description or method notes saved on the laptop.'}</div></div><div class="card small">This recipe is read-only on the phone. Make changes on the laptop and press Sync Now to update it here.</div>`;
+  box.innerHTML=html;go('recipeDetail')
+}
+document.getElementById('recipeSearch').addEventListener('input',renderRecipes);
+document.getElementById('recipeTypeFilter').addEventListener('change',renderRecipes);
+
+
+let purchaseDraftItems=[];let purchaseDraftAttachments=[];
+function renderPurchaseIngredientOptions(){const sel=document.getElementById('purIngredient');if(!sel)return;const old=sel.value;sel.innerHTML='<option value="">Select ingredient</option>';[...S.ingredients].sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=titleItem(i.name);sel.appendChild(o)});if([...sel.options].some(o=>o.value===old))sel.value=old}
+function renderPurchaseDraft(){const box=document.getElementById('purItemsList');if(!box)return;box.innerHTML='';purchaseDraftItems.forEach(x=>{const d=document.createElement('div');d.className='purchase-item';d.innerHTML=`<div><b>${titleItem(x.ingredient)}</b><div class="small">${x.qty} ${x.unit} • ${money(x.amount)} • Update price: ${x.update_price?'Yes':'No'}</div></div><button type="button" class="remove-mini">×</button>`;d.querySelector('button').onclick=()=>{purchaseDraftItems=purchaseDraftItems.filter(y=>y.id!==x.id);renderPurchaseDraft()};box.appendChild(d)})}
+function renderPurchases(){const box=document.getElementById('purchasesList');if(!box)return;box.innerHTML='';const rows=[...S.purchases].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));if(!rows.length){box.innerHTML='<div class="card muted">No purchases synced yet.</div>';return}rows.forEach(p=>{const d=document.createElement('div');d.className='list-item';d.innerHTML=`<div class="list-top"><b>${p.supplier||'Supplier'}</b><span class="money">${money(p.total_amount)}</span></div><div>${p.invoice_no||'No receipt number'}</div><div class="small">${p.date||''} • ${(p.items||[]).length} item(s) • ${p.attachment_count||0} attachment(s)</div>`;box.appendChild(d)})}
+function resetPurchaseForm(){purchaseDraftItems=[];purchaseDraftAttachments=[];document.getElementById('purSupplier').value='';document.getElementById('purInvoice').value='';document.getElementById('purDate').value=todayIso();document.getElementById('purTotal').value='0';document.getElementById('purAttachment').value='';document.getElementById('purAttachmentInfo').textContent='Optional. Images are compressed before sync. Large PDFs may need to be attached on the laptop.';renderPurchaseDraft();renderPurchaseIngredientOptions()}
+document.getElementById('newPurchaseBtn').onclick=()=>{resetPurchaseForm();go('newPurchase')};
+document.getElementById('purAddItem').onclick=()=>{const id=document.getElementById('purIngredient').value;const ing=S.ingredients.find(i=>i.id===id);if(!ing){alert('Choose an ingredient.');return}const qty=Number(document.getElementById('purQty').value||0),amount=Number(document.getElementById('purAmount').value||0);if(!(qty>0)||amount<0){alert('Enter a valid quantity and amount.');return}purchaseDraftItems.push({id:uid(),ingredient_id:ing.id,ingredient:ing.name,qty,unit:document.getElementById('purUnit').value,amount,update_price:document.getElementById('purUpdatePrice').checked});document.getElementById('purQty').value='';document.getElementById('purAmount').value='';renderPurchaseDraft()};
+async function fileToSyncAttachment(file){if(!file)return null;if(file.type.startsWith('image/')){return await new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const max=1400,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.72);URL.revokeObjectURL(url);resolve({name:(file.name||'receipt').replace(/\.[^.]+$/,'')+'.jpg',type:'image/jpeg',data_url:data})}catch(e){reject(e)}};img.onerror=reject;img.src=url})}if(file.size>2500000)throw new Error('This PDF is over 2.5 MB. Please attach it from the laptop instead.');return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({name:file.name||'receipt.pdf',type:file.type||'application/pdf',data_url:r.result});r.onerror=reject;r.readAsDataURL(file)})}
+document.getElementById('purAttachment').addEventListener('change',async e=>{purchaseDraftAttachments=[];const file=e.target.files?.[0];if(!file)return;try{const a=await fileToSyncAttachment(file);if(a)purchaseDraftAttachments=[a];document.getElementById('purAttachmentInfo').textContent=`Attached: ${file.name}. It will transfer to the laptop on Sync Now.`}catch(err){alert(err.message);e.target.value=''}});
+document.getElementById('savePurchaseBtn').onclick=()=>{const supplier=document.getElementById('purSupplier').value.trim(),invoice=document.getElementById('purInvoice').value.trim(),date=document.getElementById('purDate').value||todayIso(),total=Number(document.getElementById('purTotal').value||0);if(!supplier||!invoice){alert('Supplier and receipt/invoice number are required.');return}if(!purchaseDraftItems.length){alert('Add at least one purchased ingredient.');return}const p={phone_sync_id:uid(),supplier,invoice_no:invoice,date,total_amount:total,items:purchaseDraftItems.map(x=>({...x})),attachments:purchaseDraftAttachments.map(x=>({...x})),created:nowIso()};S.purchases.unshift({...p,attachment_count:p.attachments.length});markPurchase(p);save();alert('Purchase saved on phone. Stock and prices will update on the laptop after Sync Now.');resetPurchaseForm();go('purchases')};
+function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
 function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
   document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
-function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();donutCalc();renderOrders();renderCustomers();renderHome();renderSync()}
+function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseIngredientOptions();renderHome();renderSync()}
 document.getElementById('importLaptop').addEventListener('change',async e=>{
   const f=e.target.files[0];
   if(!f)return;
@@ -268,7 +599,7 @@ document.getElementById('forgetLaptop').onclick=()=>{
 document.getElementById('syncNow').onclick=async()=>{
   try{
     if(!(S.lan&&S.lan.token&&S.lan.server)){alert('Pair this phone first.');return}
-    const payload={schema:'sugar_canvas_phone_changes',version:4,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders)};
+    const payload={schema:'sugar_canvas_phone_changes',version:9,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
     const enc=b64urlJson(payload);
     if(enc.length>70000){alert('There are too many unsynced changes for Wi-Fi bridge sync. Use Backup File Sync once, then continue with Wi-Fi sync.');return}
     const ts=Math.floor(Date.now()/1000).toString();
@@ -279,7 +610,7 @@ document.getElementById('syncNow').onclick=async()=>{
 };
 
 document.getElementById('exportLaptop').onclick=()=>{
-  const payload={schema:'sugar_canvas_phone_changes',version:4,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders)};
+  const payload={schema:'sugar_canvas_phone_changes',version:9,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
