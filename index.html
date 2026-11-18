@@ -208,24 +208,55 @@
 </section>
 
 
+
 <section id="purchases" class="page">
   <div class="page-head"><button class="back" data-go="home">←</button><h1>Purchases</h1></div>
-  <button id="newPurchaseBtn">+ New Supplier Purchase</button>
-  <div class="card small">Purchase entries are saved on this phone and applied to stock when they sync to the laptop.</div>
+  <button id="newPurchaseBtn" class="wide">+ New Purchase</button>
+  <div class="card small">Purchases are grouped by month. Finance linking is finalized on the laptop during sync.</div>
   <div id="purchasesList" class="list"></div>
 </section>
-<section id="newPurchase" class="page">
-  <div class="page-head"><button class="back" data-go="purchases">←</button><h1>New Purchase</h1></div>
-  <div class="card form">
-    <label>Supplier<input id="purSupplier" placeholder="Woolworths, Winc, Spotlight..."></label>
-    <label>Receipt / Invoice Number<input id="purInvoice" placeholder="Receipt or invoice reference"></label>
-    <label>Date<input id="purDate" type="date"></label>
-    <label>Invoice Total ($)<input id="purTotal" type="number" min="0" step="0.01" value="0"></label>
-    <label>Attach receipt / invoice<input id="purAttachment" type="file" accept="image/*,.pdf,application/pdf" capture="environment"></label>
-    <div id="purAttachmentInfo" class="small">Optional. Images are compressed before sync. Large PDFs may need to be attached on the laptop.</div>
+
+<section id="purchaseDetail" class="page">
+  <div class="page-head"><button class="back" data-go="purchases">←</button><h1>Purchase Details</h1></div>
+  <div id="purchaseDetailContent"></div>
+  <div class="action-row">
+    <button id="editPurchaseBtn">Edit</button>
+    <button id="deletePurchaseBtn" class="danger-button">Delete</button>
   </div>
+</section>
+
+<section id="newPurchase" class="page">
+  <div class="page-head"><button class="back" data-go="purchases">←</button><h1 id="purchaseFormTitle">New Purchase</h1></div>
   <div class="card form">
-    <b>Add Purchased Ingredient</b>
+    <label>Vendor<select id="purSupplier"></select></label>
+    <button id="purNewVendor" type="button" class="secondary">+ New Vendor</button>
+    <label>ABN (optional)<input id="purABN" inputmode="numeric"></label>
+    <div class="two">
+      <label>Date<input id="purDate" type="date"></label>
+      <label>Time<input id="purTime" type="time"></label>
+    </div>
+    <label>Receipt / Invoice / Docket Number<input id="purInvoice" placeholder="Receipt or invoice reference"></label>
+    <label>Paid With<select id="purPaidWith"></select></label>
+    <div class="two">
+      <label>GST Paid ($)<input id="purGST" type="number" min="0" step="0.01" value="0"></label>
+      <label>Total Amount ($)<input id="purTotal" type="number" min="0" step="0.01" value="0"></label>
+    </div>
+    <label>Attach receipt / invoice<input id="purAttachment" type="file" accept="image/*,.pdf,application/pdf" capture="environment"></label>
+    <div id="purAttachmentInfo" class="small">Optional. Photo/PDF transfers to the laptop on Sync Now.</div>
+  </div>
+
+  <div class="card">
+    <div class="list-top"><b>Items Bought</b><button id="openPurchaseItemDialog" type="button" class="secondary">+ Add Item</button></div>
+    <div id="purItemsList"></div>
+  </div>
+
+  <button id="savePurchaseBtn" class="wide">Save Purchase</button>
+  <button id="cancelPurchaseEditBtn" class="secondary wide" hidden>Cancel Editing</button>
+</section>
+
+<dialog id="purchaseItemDialog" class="modal-card">
+  <form method="dialog" class="form">
+    <h2>Add Purchased Item</h2>
     <label>Ingredient<select id="purIngredient"></select></label>
     <button id="purNewIngredient" type="button" class="secondary">+ New Ingredient</button>
     <div class="two">
@@ -233,14 +264,32 @@
       <label>Size Per Pack<input id="purPackSize" type="number" min="0.01" step="0.01"></label>
     </div>
     <label>Unit<select id="purUnit"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>pcs</option></select></label>
-    <div class="card small">Total quantity to stock: <b id="purTotalQty">0</b></div>
+    <div class="small">Total stock: <b id="purTotalQty">0</b></div>
     <label>Amount Paid For All Packs ($)<input id="purAmount" type="number" min="0" step="0.01"></label>
     <label class="checkline"><input id="purUpdatePrice" type="checkbox" checked> Update current recipe price</label>
-    <button id="purAddItem" type="button" class="secondary">+ Add Item</button>
-    <div id="purItemsList"></div>
-  </div>
-  <button id="savePurchaseBtn" class="wide">Save Purchase</button>
-</section>
+    <div class="action-row compact">
+      <button id="cancelPurchaseItem" type="button" class="secondary">Cancel</button>
+      <button id="purAddItem" type="button">Add Item</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="vendorDialog" class="modal-card">
+  <form method="dialog" class="form">
+    <h2>New Vendor</h2>
+    <label>Vendor Name<input id="newVendorName"></label>
+    <label>ABN (optional)<input id="newVendorABN" inputmode="numeric"></label>
+    <div class="action-row compact">
+      <button id="cancelVendor" type="button" class="secondary">Cancel</button>
+      <button id="saveVendor" type="button">Save Vendor</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="updateBanner" class="update-banner" hidden>
+  <span>New Sugar Canvas version available.</span>
+  <button id="updateNowBtn">Update Now</button>
+</div>
 
 <section id="sync" class="page">
   <div class="page-head"><button class="back" data-go="home">←</button><h1>Sync</h1></div>
