@@ -7,13 +7,14 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
+const APP_VERSION='12.0.0';
+let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function decodeB64urlJson(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0)));return JSON.parse(new TextDecoder().decode(bytes))}
 async function hmacHex(secret,msg){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(msg));return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
+function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
   const changedCustomers=new Set(Object.keys(S.changes.customers||{}));const changedOrders=new Set(Object.keys(S.changes.orders||{}));
   const byCid=new Map(S.customers.map(c=>[c.phone_sync_id||c.id,c]));(p.customers||[]).forEach(c=>{const id=c.phone_sync_id||c.id;if(clearChanges||!changedCustomers.has(id))byCid.set(id,c)});S.customers=[...byCid.values()];
   const byOid=new Map(S.orders.map(o=>[o.phone_sync_id||o.id||o.order_no,o]));(p.orders||[]).forEach(o=>{const id=o.phone_sync_id||o.id||o.order_no;if(clearChanges||!changedOrders.has(id))byOid.set(id,o)});S.orders=[...byOid.values()];
@@ -540,73 +541,171 @@ document.getElementById('recipeSearch').addEventListener('input',renderRecipes);
 document.getElementById('recipeTypeFilter').addEventListener('change',renderRecipes);
 
 
-let purchaseDraftItems=[];let purchaseDraftAttachments=[];
-function renderPurchaseIngredientOptions(){const sel=document.getElementById('purIngredient');if(!sel)return;const old=sel.value;sel.innerHTML='<option value="">Select ingredient</option>';[...S.ingredients].sort((a,b)=>String(a.name).localeCompare(String(b.name))).forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=titleItem(i.name);sel.appendChild(o)});if([...sel.options].some(o=>o.value===old))sel.value=old}
-function renderPurchaseDraft(){const box=document.getElementById('purItemsList');if(!box)return;box.innerHTML='';purchaseDraftItems.forEach(x=>{const d=document.createElement('div');d.className='purchase-item';d.innerHTML=`<div><b>${titleItem(x.ingredient)}</b><div class="small">${x.packs||1} × ${x.pack_size||x.qty} ${x.unit} = ${x.qty} ${x.unit} • ${money(x.amount)} • Update price: ${x.update_price?'Yes':'No'}</div></div><button type="button" class="remove-mini">×</button>`;d.querySelector('button').onclick=()=>{purchaseDraftItems=purchaseDraftItems.filter(y=>y.id!==x.id);renderPurchaseDraft()};box.appendChild(d)})}
-function renderPurchases(){const box=document.getElementById('purchasesList');if(!box)return;box.innerHTML='';const rows=[...S.purchases].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));if(!rows.length){box.innerHTML='<div class="card muted">No purchases synced yet.</div>';return}rows.forEach(p=>{const d=document.createElement('div');d.className='list-item';d.innerHTML=`<div class="list-top"><b>${p.supplier||'Supplier'}</b><span class="money">${money(p.total_amount)}</span></div><div>${p.invoice_no||'No receipt number'}</div><div class="small">${p.date||''} • ${(p.items||[]).length} item(s) • ${p.attachment_count||0} attachment(s)</div>`;box.appendChild(d)})}
-function resetPurchaseForm(){purchaseDraftItems=[];purchaseDraftAttachments=[];document.getElementById('purSupplier').value='';document.getElementById('purInvoice').value='';document.getElementById('purDate').value=todayIso();document.getElementById('purTotal').value='0';document.getElementById('purPacks').value='1';document.getElementById('purPackSize').value='';document.getElementById('purAmount').value='';document.getElementById('purTotalQty').textContent='0';document.getElementById('purAttachment').value='';document.getElementById('purAttachmentInfo').textContent='Optional. Images are compressed before sync. Large PDFs may need to be attached on the laptop.';renderPurchaseDraft();renderPurchaseIngredientOptions()}
+let purchaseDraftItems=[];let purchaseDraftAttachments=[];let editingPurchaseId='';let selectedPurchaseId='';
+
+function purchaseKey(p){return String(p?.phone_sync_id||p?.id||'')}
+function findPhonePurchase(id){return S.purchases.find(p=>purchaseKey(p)===String(id||''))}
+function renderPurchaseVendorOptions(){
+  const sel=document.getElementById('purSupplier');if(!sel)return;
+  const current=sel.value;
+  const rows=[...S.suppliers].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  sel.innerHTML='<option value="">Choose Vendor</option>'+rows.map(s=>'<option value="'+(s.id||s.name)+'">'+titleItem(s.name||'Vendor')+'</option>').join('');
+  if(rows.some(s=>String(s.id||s.name)===current))sel.value=current;
+}
+function selectedVendor(){
+  const val=document.getElementById('purSupplier').value;
+  return S.suppliers.find(s=>String(s.id||s.name)===String(val))||null;
+}
+function renderPurchasePaymentOptions(){
+  const sel=document.getElementById('purPaidWith');if(!sel)return;
+  const rows=(S.finance_payment_methods&&S.finance_payment_methods.length?S.finance_payment_methods:[{id:'',name:'Cash',type:'Cash'}]);
+  const current=sel.value;
+  sel.innerHTML=rows.map(x=>'<option value="'+(x.id||x.name)+'" data-name="'+x.name+'" data-type="'+(x.type||'')+'">'+titleItem(x.name)+'</option>').join('');
+  if([...sel.options].some(o=>o.value===current))sel.value=current;
+}
+function renderPurchaseIngredientOptions(){
+  const sel=document.getElementById('purIngredient');if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Choose Ingredient</option>'+[...S.ingredients].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(i=>'<option value="'+i.id+'">'+titleItem(i.name||'Ingredient')+'</option>').join('');
+  if(S.ingredients.some(i=>i.id===cur))sel.value=cur;
+}
+function renderPurchaseDraft(){
+  const box=document.getElementById('purItemsList');if(!box)return;box.innerHTML='';
+  if(!purchaseDraftItems.length){box.innerHTML='<div class="small muted">No items added yet.</div>';return}
+  purchaseDraftItems.forEach(x=>{
+    const d=document.createElement('div');d.className='purchase-item';
+    d.innerHTML='<div><b>'+titleItem(x.ingredient)+'</b><div class="small">'+(x.packs||1)+' × '+(x.pack_size||x.qty)+' '+x.unit+' = '+x.qty+' '+x.unit+' • '+money(x.amount)+' • Update price: '+(x.update_price?'Yes':'No')+'</div></div><button type="button" class="remove-mini">×</button>';
+    d.querySelector('button').onclick=()=>{purchaseDraftItems=purchaseDraftItems.filter(y=>y.id!==x.id);renderPurchaseDraft()};box.appendChild(d)
+  })
+}
+function monthLabelFromDate(value){
+  const d=new Date(String(value||'')+'T00:00:00');if(Number.isNaN(d.getTime()))return String(value||'Unknown');
+  return d.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+}
+function renderPurchases(){
+  const box=document.getElementById('purchasesList');if(!box)return;box.innerHTML='';
+  const rows=[...S.purchases].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  if(!rows.length){box.innerHTML='<div class="card muted">No purchases yet.</div>';return}
+  let lastMonth='';
+  rows.forEach(p=>{
+    const m=monthLabelFromDate(p.date);
+    if(m!==lastMonth){
+      const monthRows=rows.filter(x=>monthLabelFromDate(x.date)===m);
+      const total=monthRows.reduce((a,x)=>a+Number(x.total_amount||0),0);
+      const h=document.createElement('div');h.className='month-group';h.innerHTML='<span>'+m+'</span><span>'+money(total)+'</span>';box.appendChild(h);lastMonth=m;
+    }
+    const d=document.createElement('div');d.className='list-item purchase-row';
+    const fin=p.finance_status||'Pending laptop sync';
+    d.innerHTML='<div class="list-top"><b>'+titleItem(p.supplier||'Vendor')+'</b><span class="money">'+money(p.total_amount)+'</span></div><div>'+(p.invoice_no||'No invoice number')+'</div><div class="small">'+(p.date||'')+(p.time?' • '+p.time:'')+' • '+((p.items||[]).length)+' item(s) • '+titleItem(p.paid_with||'')+'</div><div class="small"><span class="finance-chip">'+fin+'</span></div>';
+    d.onclick=()=>openPurchaseDetail(purchaseKey(p));box.appendChild(d)
+  })
+}
+function openPurchaseDetail(id){
+  const p=findPhonePurchase(id);if(!p)return;selectedPurchaseId=purchaseKey(p);
+  const items=(p.items||[]).map(x=>'<div class="detail-row"><span>'+titleItem(x.ingredient||'Item')+'</span><b>'+(x.packs||1)+' × '+(x.pack_size||x.qty)+' '+x.unit+' = '+x.qty+' '+x.unit+'<br>'+money(x.amount)+'</b></div>').join('');
+  document.getElementById('purchaseDetailContent').innerHTML='<div class="card detail-card">'+detailRow('Vendor',titleItem(p.supplier||''))+detailRow('ABN',p.supplier_abn||'—')+detailRow('Invoice / Docket',p.invoice_no||'—')+detailRow('Date / Time',(p.date||'')+(p.time?' '+p.time:''))+detailRow('Paid With',titleItem(p.paid_with||'—'))+detailRow('GST Paid',money(p.gst_paid||0))+detailRow('Total',money(p.total_amount||0))+detailRow('Finance',p.finance_status||'Pending laptop sync')+'</div><div class="card detail-card"><div class="detail-section-title">Items Bought</div>'+(items||'<div class="muted">No items.</div>')+'</div><div class="card small">Receipt attachments are stored on the laptop after sync.</div>';
+  go('purchaseDetail');
+}
+function resetPurchaseForm(){
+  editingPurchaseId='';purchaseDraftItems=[];purchaseDraftAttachments=[];
+  document.getElementById('purchaseFormTitle').textContent='New Purchase';
+  document.getElementById('savePurchaseBtn').textContent='Save Purchase';
+  document.getElementById('cancelPurchaseEditBtn').hidden=true;
+  renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();
+  document.getElementById('purSupplier').value='';document.getElementById('purABN').value='';
+  document.getElementById('purInvoice').value='';document.getElementById('purDate').value=todayIso();
+  document.getElementById('purTime').value=new Date().toTimeString().slice(0,5);
+  document.getElementById('purGST').value='0';document.getElementById('purTotal').value='0';
+  document.getElementById('purPacks').value='1';document.getElementById('purPackSize').value='';document.getElementById('purAmount').value='';
+  document.getElementById('purTotalQty').textContent='0';document.getElementById('purAttachment').value='';
+  document.getElementById('purAttachmentInfo').textContent='Optional. Photo/PDF transfers to the laptop on Sync Now.';
+  renderPurchaseDraft();
+}
 document.getElementById('newPurchaseBtn').onclick=()=>{resetPurchaseForm();go('newPurchase')};
+document.getElementById('purSupplier').addEventListener('change',()=>{const s=selectedVendor();document.getElementById('purABN').value=s?.abn||''});
+document.getElementById('purNewVendor').onclick=()=>document.getElementById('vendorDialog').showModal();
+document.getElementById('cancelVendor').onclick=()=>document.getElementById('vendorDialog').close();
+document.getElementById('saveVendor').onclick=()=>{
+  const name=document.getElementById('newVendorName').value.trim(),abn=document.getElementById('newVendorABN').value.trim();
+  if(!name){alert('Enter vendor name.');return}
+  let s=S.suppliers.find(x=>String(x.name||'').toLowerCase()===name.toLowerCase());
+  if(!s){s={id:'phone-vendor-'+uid(),name,abn};S.suppliers.push(s)}else if(abn)s.abn=abn;
+  renderPurchaseVendorOptions();document.getElementById('purSupplier').value=s.id||s.name;document.getElementById('purABN').value=s.abn||'';
+  document.getElementById('newVendorName').value='';document.getElementById('newVendorABN').value='';document.getElementById('vendorDialog').close();save()
+};
+document.getElementById('openPurchaseItemDialog').onclick=()=>{renderPurchaseIngredientOptions();document.getElementById('purchaseItemDialog').showModal()};
+document.getElementById('cancelPurchaseItem').onclick=()=>document.getElementById('purchaseItemDialog').close();
 function updatePurchaseTotalQty(){
-  const packs=Number(document.getElementById('purPacks').value||0);
-  const size=Number(document.getElementById('purPackSize').value||0);
-  const unit=document.getElementById('purUnit').value;
-  const total=packs*size;
-  document.getElementById('purTotalQty').textContent=(Number.isFinite(total)?Math.round(total*100)/100:0)+' '+unit;
+  const packs=Number(document.getElementById('purPacks').value||0),size=Number(document.getElementById('purPackSize').value||0),unit=document.getElementById('purUnit').value;
+  const total=packs*size;document.getElementById('purTotalQty').textContent=(Number.isFinite(total)?Math.round(total*100)/100:0)+' '+unit
 }
 ['purPacks','purPackSize','purUnit'].forEach(id=>document.getElementById(id).addEventListener('input',updatePurchaseTotalQty));
 document.getElementById('purIngredient').addEventListener('change',()=>{
-  const ing=S.ingredients.find(i=>i.id===document.getElementById('purIngredient').value);
-  if(!ing)return;
+  const ing=S.ingredients.find(i=>i.id===document.getElementById('purIngredient').value);if(!ing)return;
   if(Number(ing.buy_qty||0)>0)document.getElementById('purPackSize').value=Number(ing.buy_qty);
-  document.getElementById('purUnit').value=ing.buy_unit||'g';
-  updatePurchaseTotalQty();
+  document.getElementById('purUnit').value=ing.buy_unit||'g';updatePurchaseTotalQty()
 });
 document.getElementById('purNewIngredient').onclick=()=>{
-  const name=prompt('New ingredient name');
-  if(!name||!name.trim())return;
-  const sizeRaw=prompt('Default pack size (optional). Example: 180');
-  if(sizeRaw===null)return;
-  const size=sizeRaw.trim()===''?0:Number(sizeRaw);
-  if(!Number.isFinite(size)||size<0){alert('Enter a valid pack size.');return}
-  const unit=prompt('Unit: g, kg, ml, L or pcs','g')||'g';
-  const allowed=['g','kg','ml','L','pcs'];
-  if(!allowed.includes(unit)){alert('Use g, kg, ml, L or pcs.');return}
-  const existing=S.ingredients.find(i=>String(i.name||'').toLowerCase()===name.trim().toLowerCase());
-  const ing=existing||{id:'phone-ing-'+uid(),name:name.trim(),buy_qty:size,buy_unit:unit,buy_price:0,stock_qty:0,stock_unit:unit,new_ingredient:true};
-  if(!existing)S.ingredients.push(ing);
-  renderPurchaseIngredientOptions();
-  document.getElementById('purIngredient').value=ing.id;
-  document.getElementById('purPackSize').value=size||'';
-  document.getElementById('purUnit').value=unit;
-  updatePurchaseTotalQty();
+  const name=prompt('New ingredient name');if(!name||!name.trim())return;
+  const sizeRaw=prompt('Default pack size (optional). Example: 180');if(sizeRaw===null)return;
+  const size=sizeRaw.trim()===''?0:Number(sizeRaw);if(!Number.isFinite(size)||size<0){alert('Enter a valid pack size.');return}
+  const unit=prompt('Unit: g, kg, ml, L or pcs','g')||'g';if(!['g','kg','ml','L','pcs'].includes(unit)){alert('Use g, kg, ml, L or pcs.');return}
+  let ing=S.ingredients.find(i=>String(i.name||'').toLowerCase()===name.trim().toLowerCase());
+  if(!ing){ing={id:'phone-ing-'+uid(),name:name.trim(),buy_qty:size,buy_unit:unit,buy_price:0,stock_qty:0,stock_unit:unit,new_ingredient:true};S.ingredients.push(ing)}
+  renderPurchaseIngredientOptions();document.getElementById('purIngredient').value=ing.id;document.getElementById('purPackSize').value=size||'';document.getElementById('purUnit').value=unit;updatePurchaseTotalQty();save()
 };
 document.getElementById('purAddItem').onclick=()=>{
-  const id=document.getElementById('purIngredient').value;
-  const ing=S.ingredients.find(i=>i.id===id);
-  if(!ing){alert('Choose an ingredient or add a new one.');return}
-  const packs=Number(document.getElementById('purPacks').value||0);
-  const packSize=Number(document.getElementById('purPackSize').value||0);
-  const qty=packs*packSize;
-  const amount=Number(document.getElementById('purAmount').value||0);
-  if(!(packs>0)||!(packSize>0)||!(qty>0)||amount<0){alert('Enter valid packs, pack size and amount.');return}
-  purchaseDraftItems.push({
-    id:uid(),ingredient_id:ing.id,ingredient:ing.name,
-    packs,pack_size:packSize,qty,unit:document.getElementById('purUnit').value,
-    amount,update_price:document.getElementById('purUpdatePrice').checked,
-    new_ingredient:!!ing.new_ingredient
-  });
-  document.getElementById('purPacks').value='1';
-  document.getElementById('purPackSize').value='';
-  document.getElementById('purAmount').value='';
-  updatePurchaseTotalQty();renderPurchaseDraft();
+  const ing=S.ingredients.find(i=>i.id===document.getElementById('purIngredient').value);if(!ing){alert('Choose an ingredient.');return}
+  const packs=Number(document.getElementById('purPacks').value||0),packSize=Number(document.getElementById('purPackSize').value||0),qty=packs*packSize,amount=Number(document.getElementById('purAmount').value||0);
+  if(!(packs>0)||!(packSize>0)||amount<0){alert('Enter valid packs, pack size and amount.');return}
+  purchaseDraftItems.push({id:uid(),ingredient_id:ing.id,ingredient:ing.name,packs,pack_size:packSize,qty,unit:document.getElementById('purUnit').value,amount,update_price:document.getElementById('purUpdatePrice').checked,new_ingredient:!!ing.new_ingredient});
+  document.getElementById('purchaseItemDialog').close();document.getElementById('purPacks').value='1';document.getElementById('purPackSize').value='';document.getElementById('purAmount').value='';updatePurchaseTotalQty();renderPurchaseDraft()
 };
-async function fileToSyncAttachment(file){if(!file)return null;if(file.type.startsWith('image/')){return await new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const max=1400,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.72);URL.revokeObjectURL(url);resolve({name:(file.name||'receipt').replace(/\.[^.]+$/,'')+'.jpg',type:'image/jpeg',data_url:data})}catch(e){reject(e)}};img.onerror=reject;img.src=url})}if(file.size>2500000)throw new Error('This PDF is over 2.5 MB. Please attach it from the laptop instead.');return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({name:file.name||'receipt.pdf',type:file.type||'application/pdf',data_url:r.result});r.onerror=reject;r.readAsDataURL(file)})}
-document.getElementById('purAttachment').addEventListener('change',async e=>{purchaseDraftAttachments=[];const file=e.target.files?.[0];if(!file)return;try{const a=await fileToSyncAttachment(file);if(a)purchaseDraftAttachments=[a];document.getElementById('purAttachmentInfo').textContent=`Attached: ${file.name}. It will transfer to the laptop on Sync Now.`}catch(err){alert(err.message);e.target.value=''}});
-document.getElementById('savePurchaseBtn').onclick=()=>{const supplier=document.getElementById('purSupplier').value.trim(),invoice=document.getElementById('purInvoice').value.trim(),date=document.getElementById('purDate').value||todayIso(),total=Number(document.getElementById('purTotal').value||0);if(!supplier||!invoice){alert('Supplier and receipt/invoice number are required.');return}if(!purchaseDraftItems.length){alert('Add at least one purchased ingredient.');return}const p={phone_sync_id:uid(),supplier,invoice_no:invoice,date,total_amount:total,items:purchaseDraftItems.map(x=>({...x})),attachments:purchaseDraftAttachments.map(x=>({...x})),created:nowIso()};S.purchases.unshift({...p,attachment_count:p.attachments.length});markPurchase(p);save();alert('Purchase saved on phone. Stock and prices will update on the laptop after Sync Now.');resetPurchaseForm();go('purchases')};
-function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
-function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
+async function fileToSyncAttachment(file){
+  if(!file)return null;
+  if(file.type.startsWith('image/'))return await new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const max=1400,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.72);URL.revokeObjectURL(url);resolve({name:(file.name||'receipt').replace(/\.[^.]+$/,'')+'.jpg',type:'image/jpeg',data_url:data})}catch(e){reject(e)}};img.onerror=reject;img.src=url});
+  if(file.size>2500000)throw new Error('This PDF is over 2.5 MB. Please attach it from the laptop instead.');
+  return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({name:file.name||'receipt.pdf',type:file.type||'application/pdf',data_url:r.result});r.onerror=reject;r.readAsDataURL(file)})
+}
+document.getElementById('purAttachment').addEventListener('change',async e=>{
+  purchaseDraftAttachments=[];const file=e.target.files?.[0];if(!file)return;
+  try{const a=await fileToSyncAttachment(file);if(a)purchaseDraftAttachments=[a];document.getElementById('purAttachmentInfo').textContent='Attached: '+file.name+'. It will transfer on Sync Now.'}
+  catch(err){alert(err.message);e.target.value=''}
+});
+document.getElementById('savePurchaseBtn').onclick=()=>{
+  const vendor=selectedVendor(),supplier=vendor?.name||'',invoice=document.getElementById('purInvoice').value.trim(),date=document.getElementById('purDate').value||todayIso(),time=document.getElementById('purTime').value||'',total=Number(document.getElementById('purTotal').value||0),gst=Number(document.getElementById('purGST').value||0);
+  if(!supplier||!invoice){alert('Vendor and receipt/invoice number are required.');return}
+  if(!purchaseDraftItems.length){alert('Add at least one purchased item.');return}
+  const paidSel=document.getElementById('purPaidWith'),opt=paidSel.options[paidSel.selectedIndex],paidWith=opt?.dataset?.name||opt?.textContent||'Cash',paidType=opt?.dataset?.type||'';
+  const existing=editingPurchaseId?findPhonePurchase(editingPurchaseId):null;
+  const p={...(existing||{}),phone_sync_id:existing?purchaseKey(existing):uid(),supplier,supplier_abn:document.getElementById('purABN').value.trim(),invoice_no:invoice,date,time,gst_paid:gst,total_amount:total,paid_with:paidWith,paid_with_id:paidSel.value,paid_with_type:paidType,items:purchaseDraftItems.map(x=>({...x})),attachments:purchaseDraftAttachments.length?purchaseDraftAttachments.map(x=>({...x})):(existing?.attachments||[]),created:existing?.created||nowIso(),modified_at:nowIso()};
+  if(existing){const i=S.purchases.findIndex(x=>purchaseKey(x)===purchaseKey(existing));if(i>=0)S.purchases[i]=p}else S.purchases.unshift({...p,attachment_count:p.attachments.length});
+  markPurchase(p);save();alert(existing?'Purchase updated on phone. Sync to update laptop and Finance.':'Purchase saved on phone. Sync to update laptop and Finance.');resetPurchaseForm();go('purchases')
+};
+function editPhonePurchase(id){
+  const p=findPhonePurchase(id);if(!p)return;editingPurchaseId=purchaseKey(p);
+  renderPurchaseVendorOptions();renderPurchasePaymentOptions();
+  let vendor=S.suppliers.find(s=>String(s.name||'').toLowerCase()===String(p.supplier||'').toLowerCase());
+  if(!vendor){vendor={id:'phone-vendor-'+uid(),name:p.supplier||'Vendor',abn:p.supplier_abn||''};S.suppliers.push(vendor);renderPurchaseVendorOptions()}
+  document.getElementById('purSupplier').value=vendor.id||vendor.name;document.getElementById('purABN').value=p.supplier_abn||vendor.abn||'';
+  document.getElementById('purInvoice').value=p.invoice_no||'';document.getElementById('purDate').value=p.date||todayIso();document.getElementById('purTime').value=p.time||'';
+  document.getElementById('purGST').value=Number(p.gst_paid||0);document.getElementById('purTotal').value=Number(p.total_amount||0);
+  const payOpt=[...document.getElementById('purPaidWith').options].find(o=>(o.dataset.name||o.textContent)===p.paid_with||o.value===p.paid_with_id);if(payOpt)document.getElementById('purPaidWith').value=payOpt.value;
+  purchaseDraftItems=(p.items||[]).map(x=>({...x}));purchaseDraftAttachments=[];renderPurchaseDraft();
+  document.getElementById('purchaseFormTitle').textContent='Edit Purchase';document.getElementById('savePurchaseBtn').textContent='Update Purchase';document.getElementById('cancelPurchaseEditBtn').hidden=false;go('newPurchase')
+}
+document.getElementById('editPurchaseBtn').onclick=()=>editPhonePurchase(selectedPurchaseId);
+document.getElementById('cancelPurchaseEditBtn').onclick=()=>{resetPurchaseForm();go('purchases')};
+document.getElementById('deletePurchaseBtn').onclick=()=>{
+  const p=findPhonePurchase(selectedPurchaseId);if(!p)return;
+  if(!confirm('Delete purchase '+(p.invoice_no||'')+' from '+(p.supplier||'vendor')+'? It will be deleted from the laptop and Finance after sync.'))return;
+  const id=purchaseKey(p);S.purchases=S.purchases.filter(x=>purchaseKey(x)!==id);S.changes.purchases[id]={phone_sync_id:id,_deleted:true,modified_at:nowIso()};save();go('purchases')
+};
+
+function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
+function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
   document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
-function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseIngredientOptions();renderHome();renderSync()}
+function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
 document.getElementById('importLaptop').addEventListener('change',async e=>{
   const f=e.target.files[0];
   if(!f)return;
@@ -652,7 +751,7 @@ document.getElementById('forgetLaptop').onclick=()=>{
 document.getElementById('syncNow').onclick=async()=>{
   try{
     if(!(S.lan&&S.lan.token&&S.lan.server)){alert('Pair this phone first.');return}
-    const payload={schema:'sugar_canvas_phone_changes',version:10,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
+    const payload={schema:'sugar_canvas_phone_changes',version:11,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
     const enc=b64urlJson(payload);
     if(enc.length>70000){alert('There are too many unsynced changes for Wi-Fi bridge sync. Use Backup File Sync once, then continue with Wi-Fi sync.');return}
     const ts=Math.floor(Date.now()/1000).toString();
@@ -663,7 +762,7 @@ document.getElementById('syncNow').onclick=async()=>{
 };
 
 document.getElementById('exportLaptop').onclick=()=>{
-  const payload={schema:'sugar_canvas_phone_changes',version:10,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
+  const payload={schema:'sugar_canvas_phone_changes',version:11,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
@@ -678,4 +777,28 @@ document.getElementById('cakeDate').value=todayIso();
 document.getElementById('donutDate').value=todayIso();
 prune();
 save();
-if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+async function setupAutoUpdates(){
+  if(!('serviceWorker' in navigator))return;
+  try{
+    const reg=await navigator.serviceWorker.register('sw.js');
+    const banner=document.getElementById('updateBanner'),btn=document.getElementById('updateNowBtn');
+    let waitingWorker=null;
+    const show=worker=>{waitingWorker=worker||reg.waiting;banner.hidden=false};
+    if(reg.waiting)show(reg.waiting);
+    reg.addEventListener('updatefound',()=>{
+      const w=reg.installing;if(!w)return;
+      w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)show(w)})
+    });
+    navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
+    btn.onclick=()=>{const w=waitingWorker||reg.waiting;if(w)w.postMessage({type:'SKIP_WAITING'});else location.reload()};
+    async function check(){
+      try{
+        await reg.update();
+        const r=await fetch('version.json?ts='+Date.now(),{cache:'no-store'});
+        if(r.ok){const v=await r.json();if(String(v.version||'')!==APP_VERSION)show(reg.waiting)}
+      }catch(e){}
+    }
+    check();setInterval(check,60000);
+  }catch(e){}
+}
+setupAutoUpdates();
