@@ -6,9 +6,9 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',facebook_url:'https://www.facebook.com/share/1E2qUGaMEP/',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='25.0.0';
-let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/share/1E2qUGaMEP/',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='26.0.0';
+let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
@@ -33,6 +33,7 @@ function markPurchase(p){S.changes.purchases[p.phone_sync_id]=p}
 function orderKey(o){return String(o?.phone_sync_id||o?.id||o?.order_no||'')}
 function findOrder(id){return S.orders.find(o=>orderKey(o)===String(id||''))}
 function isDonutOrder(o){return String(o?.product_type||'').toLowerCase()==='donut'||(/donut|bomboloni|ring/i.test(String(o?.item||'')) && !String(o?.recipe||'').trim())}
+function isBrownieOrder(o){return String(o?.product_type||'').toLowerCase()==='brownie'||/brownie|blondie/i.test(String(o?.item||''))}
 function setDeliveryFields(prefix,needed,charge){
   const sel=document.getElementById(prefix+'DeliveryNeeded');
   const input=document.getElementById(prefix+'DeliveryCharge');
@@ -478,7 +479,66 @@ function saveDonut(status){
   go('orders');
 }
 document.getElementById('saveDonutQuote').onclick=()=>saveDonut('Quotation');document.getElementById('confirmDonutOrder').onclick=()=>saveDonut('Confirmed');
+document.getElementById('brownieKind').addEventListener('change',brownieCalc);
+document.getElementById('brownieDeliveryNeeded').addEventListener('change',function(){updateDeliveryVisibility('brownie');brownieCalc()});
+document.getElementById('brownieDeliveryCharge').addEventListener('input',brownieCalc);
+document.getElementById('addBrownieCustomItem').onclick=addBrownieCustomItem;
+document.getElementById('saveBrownieQuote').onclick=function(){saveBrownie('Quotation')};
+document.getElementById('confirmBrownieOrder').onclick=function(){saveBrownie('Confirmed')};
+document.getElementById('brownieAddCustomer').onclick=function(){var c=addCustomer();if(c)document.getElementById('brownieCustomer').value=c.name};
+
 document.getElementById('cancelDonutEdit').onclick=()=>{S.donutDraft={customItems:[]};clearEditMode();save();go('orders')};
+
+const BROWNIE_MENU={classic:{name:'Classic Brownie',price:30},cream_cheese:{name:'Cream Cheese Brownie',price:35},oreo:{name:'Oreo Brownie',price:33},biscoff_blondies:{name:'Biscoff Blondies',price:37},assorted:{name:'Assorted Brownie Box',price:40},custom:{name:'Custom / Other Brownie Order',price:0}};
+function brownieCustomTotal(){return ((S.brownieDraft&&S.brownieDraft.customItems)||[]).reduce(function(total,row){return total+Math.max(0,Number(row.amount||0))},0)}
+function renderBrownieCustomItems(){
+  var box=document.getElementById('brownieCustomItems');if(!box)return;
+  var rows=((S.brownieDraft&&S.brownieDraft.customItems)||[]);box.innerHTML='';
+  if(!rows.length){box.innerHTML='<div class="small">No custom items added.</div>';return}
+  rows.forEach(function(item){
+    var row=document.createElement('div');row.className='selected-addon-row';
+    row.innerHTML='<div><b>'+escapeHtml(item.description||'Custom item')+'</b><div class="small">Qty '+Number(item.quantity||1)+'</div></div><div><b>'+money(item.amount)+'</b> <button class="remove-mini" type="button">x</button></div>';
+    row.querySelector('button').onclick=function(){S.brownieDraft.customItems=rows.filter(function(x){return x.id!==item.id});localStorage.setItem(KEY,JSON.stringify(S));renderBrownieCustomItems();brownieCalc()};
+    box.appendChild(row);
+  });
+}
+function addBrownieCustomItem(){
+  var description=prompt("Custom brownie item / extra description");if(!description)return;
+  var qtyText=prompt("Quantity","1");if(qtyText===null)return;
+  var quantity=Math.max(1,Number(qtyText||1));if(!Number.isFinite(quantity)){alert("Enter a valid quantity.");return}
+  var priceText=prompt("Customer price to add for this line");if(priceText===null)return;
+  var amount=Number(String(priceText).replace("$","").replace(",","").trim());
+  if(!Number.isFinite(amount)||amount<0){alert("Enter a valid amount.");return}
+  S.brownieDraft.customItems.push({id:uid(),description:description.trim(),quantity:quantity,amount:Number(amount.toFixed(2))});
+  localStorage.setItem(KEY,JSON.stringify(S));renderBrownieCustomItems();brownieCalc();
+}
+function brownieCalc(){
+  var kindEl=document.getElementById('brownieKind');var kind=kindEl?kindEl.value:'classic';
+  var base=Number((BROWNIE_MENU[kind]||{}).price||0);var extras=brownieCustomTotal();var delivery=getDeliveryCharge('brownie');var total=base+extras+delivery;
+  var a=document.getElementById('brownieBasePrice');if(a)a.textContent=money(base);
+  var b=document.getElementById('brownieCustomTotal');if(b)b.textContent=money(extras);
+  var c=document.getElementById('brownieDeliveryPrice');if(c)c.textContent=money(delivery);
+  var d=document.getElementById('browniePrice');if(d)d.textContent=money(total);
+  return {kind:kind,base:base,extras:extras,delivery:delivery,total:total};
+}
+function saveBrownie(status){
+  var customer=document.getElementById('brownieCustomer').value;if(!customer){alert("Choose customer.");return}
+  var calc=brownieCalc();var menu=BROWNIE_MENU[calc.kind]||BROWNIE_MENU.custom;var pieces=Number(document.getElementById('browniePieces').value||4);var dep=Number(document.getElementById('brownieDeposit').value||0);
+  var existing=S.editingOrderId?findOrder(S.editingOrderId):null;var internalCost=Number((existing&&existing.cost)||0);
+  if(!(internalCost>0)){
+    var costText=prompt("Internal cost price for this brownie order. This stays private.","0");if(costText===null)return;
+    internalCost=Number(String(costText).replace("$","").replace(",","").trim());if(!Number.isFinite(internalCost)||internalCost<0){alert("Enter a valid cost price.");return}
+  }
+  var minConfirm=minimumConfirmDeposit(calc.total,internalCost);
+  if(status==='Confirmed'&&dep+0.001<minConfirm){alert("This quotation cannot be confirmed yet. Minimum payment required: "+money(minConfirm)+".");return}
+  var syncId=existing?orderKey(existing):uid();
+  var customItems=((S.brownieDraft&&S.brownieDraft.customItems)||[]).map(function(x){return {id:x.id,item:x.description,item_type:'Custom',quantity:x.quantity,price:x.amount,base_cost:0}});
+  var mainLine={item:menu.name,item_type:'Brownie',quantity:1,price:calc.base,base_cost:internalCost};
+  var o=Object.assign({},existing||{},{phone_sync_id:syncId,customer:customer,product_type:'brownie',item:menu.name,recipe:'',quantity:1,target_weight_g:0,brownie_kind:calc.kind,brownie_piece_count:pieces,date:document.getElementById('brownieDate').value||todayIso(),base_cost:internalCost,cost:internalCost,customisation:0,delivery_needed:document.getElementById('brownieDeliveryNeeded').value==='yes',delivery_charge:calc.delivery,price:calc.total,deposit:dep,status:status,minimum_deposit_required:minConfirm,workflow_status:status==='Confirmed'?'Confirmed':((existing&&existing.workflow_status)||''),note:document.getElementById('brownieNote').value,created:(existing&&existing.created)||todayIso(),modified_at:nowIso(),items:[mainLine].concat(customItems)});
+  if(existing){var idx=S.orders.findIndex(function(x){return orderKey(x)===syncId});if(idx>=0)S.orders[idx]=o}else{S.orders.unshift(o)}
+  markOrder(o);S.brownieDraft={customItems:[]};setDeliveryFields('brownie',false,0);clearEditMode();save();alert(status==='Quotation'?"Brownie quote saved.":"Brownie order confirmed.");go('orders');
+}
+
 function renderOrders(){
   const list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch').value||'').toLowerCase();
@@ -768,14 +828,11 @@ async function buildQuoteCanvas(o){
   if(paid>0)row('Already paid',money(paid));
   row('Minimum to confirm',money(minDep),true);
 
-  y+=18;x.fillStyle='#fff2f7';canvasRoundedRect(x,45,y,width-90,145,18);x.fill();
-  x.fillStyle='#8a124c';x.textAlign='center';x.font='bold 18px Arial';x.fillText('CONFIRMATION TERMS',width/2,y+34);
-  x.fillStyle='#38232d';x.font='16px Arial';
-  x.fillText('To confirm this quotation and reserve the order,',width/2,y+63);
-  x.fillText('a minimum payment of '+money(minDep)+' is required.',width/2,y+88);
-  x.font='14px Arial';x.fillStyle='#6f5963';
-  x.fillText('Minimum = higher of 25% of total or order cost price,',width/2,y+114);
-  x.fillText('rounded up to the next whole dollar.',width/2,y+135);y+=180;
+  y+=18;const payid=String(b.payid||'').trim();const boxH=payid?160:125;x.fillStyle='#fff2f7';canvasRoundedRect(x,45,y,width-90,boxH,18);x.fill();
+  x.fillStyle='#8a124c';x.textAlign='center';x.font='bold 18px Arial';x.fillText('TO CONFIRM YOUR ORDER',width/2,y+32);
+  x.fillStyle='#38232d';x.font='16px Arial';x.fillText('Minimum payment required:',width/2,y+61);
+  x.font='bold 22px Arial';x.fillText(money(minDep),width/2,y+89);
+  x.font='15px Arial';if(payid){x.fillText('PayID: '+payid,width/2,y+118);x.fillText('Payment reference: '+quoteRef(o),width/2,y+143);}else{x.fillText('Payment reference: '+quoteRef(o),width/2,y+118);}y+=boxH+35;
 
   const fb=b.facebook_url||'https://www.facebook.com/share/1E2qUGaMEP/',ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
   x.fillStyle='#6f5963';x.font='15px Arial';x.textAlign='center';
@@ -913,6 +970,17 @@ function completeSelectedOrder(){
 function startEditOrder(id){
   const o=findOrder(id);if(!o)return;
   S.editingOrderId=orderKey(o);
+  if(isBrownieOrder(o)){
+    document.getElementById('brownieCustomer').value=o.customer||'';
+    document.getElementById('brownieKind').value=o.brownie_kind||'custom';
+    document.getElementById('browniePieces').value=String(o.brownie_piece_count||4);
+    document.getElementById('brownieNote').value=o.note||'';
+    document.getElementById('brownieDate').value=o.date||todayIso();
+    document.getElementById('brownieDeposit').value=Number(o.deposit||0);
+    setDeliveryFields('brownie',!!o.delivery_needed,Number(o.delivery_charge||0));
+    S.brownieDraft.customItems=(o.items||[]).filter(function(it){return String(it.item_type||'').toLowerCase()==='custom'}).map(function(it){return {id:it.id||uid(),description:it.item||'Custom item',quantity:Number(it.quantity||1),amount:Number(it.price||0)}});
+    renderBrownieCustomItems();brownieCalc();go('brownie');return;
+  }
   if(isDonutOrder(o)){
     const kind=o.donut_kind||(/bomboloni/i.test(o.item||'')?'bomboloni':(/glazed/i.test(o.item||'')?'ring_glazed':'ring_assorted'));
     document.getElementById('donutCustomer').value=o.customer||'';
@@ -1163,7 +1231,7 @@ document.getElementById('deletePurchaseBtn').onclick=()=>{
 function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
 function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
   document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Business ABN synced:</b> ${S.business?.abn||'Not received from laptop yet'}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
-function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();renderDonutCustomItems();renderPremiumDonutMenu();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
+function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));customerOptions(document.getElementById('brownieCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();renderDonutCustomItems();renderPremiumDonutMenu();donutCalc();renderBrownieCustomItems();brownieCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
 document.getElementById('importLaptop').addEventListener('change',async e=>{
   const f=e.target.files[0];
   if(!f)return;
@@ -1232,7 +1300,7 @@ document.getElementById('exportLaptop').onclick=()=>{
 
 handleLanReturn();
 document.getElementById('cakeDate').value=todayIso();
-document.getElementById('donutDate').value=todayIso();
+document.getElementById('donutDate').value=todayIso();document.getElementById('brownieDate').value=todayIso();
 prune();
 save();
 async function setupAutoUpdates(){
