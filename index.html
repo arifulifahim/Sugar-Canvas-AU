@@ -287,8 +287,19 @@
 </dialog>
 
 <div id="updateBanner" class="update-banner" hidden>
-  <span>New Sugar Canvas version available.</span>
+  <span id="updateBannerText">New Sugar Canvas version available.</span>
   <button id="updateNowBtn">Update Now</button>
+</div>
+
+<div id="updateOverlay" class="update-overlay" hidden>
+  <div class="update-card">
+    <div id="updateSpinner" class="update-spinner"></div>
+    <div id="updateSuccess" class="update-success" hidden>✓</div>
+    <div id="updateStatusTitle" class="update-status-title">Updating Sugar Canvas</div>
+    <div id="updatePercent" class="update-percent">0%</div>
+    <div class="update-progress-track"><div id="updateProgressBar" class="update-progress-bar"></div></div>
+    <div id="updateStatusText" class="small center">Preparing update…</div>
+  </div>
 </div>
 
 <section id="sync" class="page">
