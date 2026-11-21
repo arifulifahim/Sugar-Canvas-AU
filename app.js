@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='18.0.0';
+const APP_VERSION='19.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -23,7 +23,12 @@ function currentReturnUrl(){return location.origin+location.pathname}
 function handleLanReturn(){const raw=location.hash||'';if(!raw.startsWith('#lanPair=')&&!raw.startsWith('#lanSync='))return false;try{const pair=raw.startsWith('#lanPair=');const value=raw.substring(pair?9:9);const data=decodeB64urlJson(value);if(!data.ok)throw new Error('Sync failed');if(pair){S.lan={server:data.server||'',token:data.token||'',device_id:data.device_id||S.device_id,device_name:S.lan?.device_name||'Phone'};applyLaptopSnapshot(data.snapshot,true);alert('Phone paired successfully. Future Wi-Fi syncs will not need the pairing code.')}else{applyLaptopSnapshot(data.snapshot,true);alert('Sugar Canvas synced successfully.');}history.replaceState(null,'',location.pathname+location.search);localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){history.replaceState(null,'',location.pathname+location.search);alert('Could not finish Wi-Fi sync: '+e.message);return false}}
 
 function markCustomer(c){S.changes.customers[c.phone_sync_id||c.id]=c}
-function markOrder(o){S.changes.orders[o.phone_sync_id]=o}
+function markOrder(o){
+  const id=orderKey(o);
+  if(!id)return;
+  o.phone_sync_id=id;
+  S.changes.orders[id]={...o,phone_sync_id:id};
+}
 function markPurchase(p){S.changes.purchases[p.phone_sync_id]=p}
 function orderKey(o){return String(o?.phone_sync_id||o?.id||o?.order_no||'')}
 function findOrder(id){return S.orders.find(o=>orderKey(o)===String(id||''))}
@@ -472,19 +477,93 @@ function completeSelectedOrder(){
   const o=findOrder(S.selectedOrderId);if(!o)return;
   const current=String(o.workflow_status||o.status||'').toLowerCase();
   if(['completed','finalised','cancelled'].includes(current))return;
-  const remaining=Math.max(0,Number(o.price||0)-Number(o.deposit||0));
-  let message='Mark this order as Completed?';
-  if(remaining>0.005)message+='\n\nOutstanding balance: '+money(remaining)+'\nThe balance will remain recorded.';
-  message+='\n\nThe completed status will sync to the laptop on your next Sync Now.';
-  if(!confirm(message))return;
+
+  const total=Math.max(0,Number(o.price||0));
+  let paid=Math.max(0,Number(o.deposit||0));
+  let remaining=Math.max(0,total-paid);
+
+  if(remaining>0.005){
+    const raw=prompt(
+      'Order Total: '+money(total)+'\n'+
+      'Already Paid: '+money(paid)+'\n'+
+      'Remaining: '+money(remaining)+'\n\n'+
+      'How much did the customer pay now?',
+      remaining.toFixed(2)
+    );
+    if(raw===null)return;
+    const amount=Number(String(raw).replace('$','').replace(',','').trim());
+    if(!Number.isFinite(amount)||amount<=0){
+      alert('Enter a valid payment amount.');
+      return;
+    }
+    if(amount>remaining+0.005){
+      alert('Payment cannot be more than the remaining balance of '+money(remaining)+'.');
+      return;
+    }
+
+    const methodRaw=prompt('Payment method?\nExample: Cash, Bank Transfer, Card, PayID','Cash');
+    if(methodRaw===null)return;
+    const method=String(methodRaw||'Cash').trim()||'Cash';
+
+    o.payments=Array.isArray(o.payments)?o.payments:[];
+    o.payments.push({
+      id:uid(),
+      date:todayIso(),
+      amount:Number(amount.toFixed(2)),
+      method,
+      note:'Customer payment entered on phone',
+      source:'phone_order_payment'
+    });
+    paid=Number((paid+amount).toFixed(2));
+    o.deposit=paid;
+    remaining=Math.max(0,Number((total-paid).toFixed(2)));
+    o.modified_at=nowIso();
+
+    if(remaining>0.005){
+      o.payment_state='Partially Paid';
+      o.payment_status=money(remaining)+' Remaining';
+      // Do not complete an order while any balance is outstanding.
+      if(String(o.status||'').toLowerCase()==='quotation')o.status='Confirmed';
+      if(String(o.workflow_status||'').toLowerCase()==='quotation')o.workflow_status='Confirmed';
+      markOrder(o);
+      S.selectedOrderId=orderKey(o);
+      save();
+      openOrderDetail(S.selectedOrderId);
+      alert('Payment saved. '+money(remaining)+' is still due, so the order has NOT been completed.\n\nTap Sync Now to send this payment to the laptop.');
+      return;
+    }
+  }
+
+  // Completion is allowed only after the full amount has been received.
+  o.deposit=total;
+  o.payment_state='Paid in Full';
+  o.payment_status='Paid in Full';
+  o.full_payment_date=o.full_payment_date||todayIso();
+
+  if(!confirm('Full amount received: '+money(total)+'\n\nMark this order as Completed?'))return;
+
   o.workflow_status='Completed';
   o.status='Completed';
   o.completed_at=nowIso();
+  o.completed_date=todayIso();
   o.modified_at=nowIso();
+
+  // The PDF itself is generated by the laptop. This flag remembers whether
+  // the customer asked for a receipt now; invoice/receipt can still be generated later.
+  o.receipt_requested=confirm(
+    'Order completed and paid in full.\n\nDoes the customer need a receipt now?\n\n'+
+    'You can still generate an Invoice or Receipt later from the laptop.'
+  );
+
   markOrder(o);
   S.selectedOrderId=orderKey(o);
   save();
   openOrderDetail(S.selectedOrderId);
+  alert(
+    'Order completed and saved on the phone.\n\n'+
+    (o.receipt_requested?'Receipt requested. ':'No receipt requested now. ')+
+    'Tap Sync Now to update the laptop.'
+  );
 }
 function startEditOrder(id){
   const o=findOrder(id);if(!o)return;
