@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#d9468f">
 <title>Sugar Canvas Companion</title>
-<link rel="manifest" href="manifest.webmanifest?v=24">
+<link rel="manifest" href="manifest.webmanifest?v=25">
 <link rel="icon" href="logo-192.png" type="image/png">
 <link rel="apple-touch-icon" href="logo-192.png">
-<link rel="stylesheet" href="app.css?v=24">
+<link rel="stylesheet" href="app.css?v=25">
 <style data-updater-hidden-fix>
 .update-overlay[hidden],.update-banner[hidden],.update-success[hidden]{display:none!important}
 </style>
@@ -137,12 +137,21 @@
       <select id="donutKind">
         <option value="bomboloni">Bomboloni Assorted</option>
         <option value="ring_glazed">Original Glazed Ring Donuts</option>
-        <option value="ring_assorted">Ring Donut Assorted</option>
+        <option value="ring_assorted">Ring Donut Assorted</option><option value="custom">Custom / Other Donut Order</option>
       </select>
     </label>
     <label>Pieces
       <select id="donutQty"><option>4</option><option>6</option><option>8</option></select>
     </label>
+    <div class="subsection">
+      <div class="subsection-head"><div><b>Premium Donut Menu</b><div class="small">Quick-select premium options will appear here after your premium menu is uploaded and synced.</div></div></div>
+      <div id="premiumDonutMenu"></div>
+    </div>
+    <div class="subsection">
+      <div class="subsection-head"><div><b>Custom Item / Extra</b><div class="small">For anything not on the menu. Add a description, quantity and the customer price to add.</div></div></div>
+      <div id="donutCustomItems" class="selected-addons"></div>
+      <button id="addDonutCustomItem" type="button" class="secondary">+ Add Custom Item / Extra</button>
+    </div>
     <label>Flavours / notes<textarea id="donutFlavours" rows="3" placeholder="Nutella, pistachio, custard..."></textarea></label>
     <label>Delivery date<input id="donutDate" type="date"></label>
     <label>Delivery needed?
@@ -157,7 +166,7 @@
     <label>Deposit ($)<input id="donutDeposit" type="number" value="0" min="0" step="0.5"></label>
   </div>
   <div class="price-card">
-    <div><span>Menu price</span><b id="donutBasePrice">$0.00</b></div>
+    <div><span>Menu price</span><b id="donutBasePrice">$0.00</b></div><div><span>Custom items / extras</span><b id="donutCustomTotal">$0.00</b></div>
     <div><span>Delivery charge</span><b id="donutDeliveryPrice">$0.00</b></div>
     <div><span>Customer price</span><b id="donutPrice">$0.00</b></div>
   </div>
@@ -358,6 +367,6 @@
   <button data-go="sync">Sync</button>
 </nav>
 
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>
