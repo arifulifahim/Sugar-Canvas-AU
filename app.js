@@ -6,8 +6,8 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='23.0.0';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',facebook_url:'https://www.facebook.com/share/1E2qUGaMEP/',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='24.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -87,6 +87,10 @@ function adjustedAddonCost(rawCost){
 function adjustedPackagingCost(rawCost){
   const raw=Math.max(0,Number(rawCost||0));
   return raw*1.5;
+}
+
+function minimumConfirmDeposit(total,cost){
+  return Math.ceil(Math.max(0,Number(total||0)*0.25,Number(cost||0)));
 }
 function getSelectedAddonRows(){
   const w=Number(document.getElementById('cakeWeight').value||500);
@@ -337,6 +341,11 @@ function saveCake(status){
   const calc=cakeCalc(),w=Number(document.getElementById('cakeWeight').value||500),q=Number(document.getElementById('cakeQty').value||1);
   const price=Number(document.getElementById('cakeFinalPrice').value||calc.customerPrice);
   const dep=Number(document.getElementById('cakeDeposit').value||0);
+  const minConfirm=minimumConfirmDeposit(price,calc.cost);
+  if(status==='Confirmed' && dep+0.001<minConfirm){
+    alert('This quotation cannot be confirmed yet.\n\nMinimum payment required: '+money(minConfirm)+'\n\nThe minimum is the higher of 25% of the order total or the order cost price, rounded up to a whole dollar.\n\nSave it as a Quote if the customer is not ready to pay the advance.');
+    return;
+  }
 
   const cakeLine={item:r.name,recipe:r.name,item_type:'Cake',quantity:q,target_weight_g:w,base_cost:calc.recipeCost,packaging_type:'',packaging_cost:0,customisation:0,price:0};
   const addonLines=calc.addonRows.map(a=>({
@@ -359,7 +368,7 @@ function saveCake(status){
     pricing_formula_version:'v311_unified',
     delivery_needed:document.getElementById('cakeDeliveryNeeded').value==='yes',
     delivery_charge:calc.deliveryCharge,
-    price,deposit:dep,status,
+    price,deposit:dep,status,minimum_deposit_required:minConfirm,
     workflow_status:status==='Confirmed'?'Confirmed':(existing?.workflow_status||''),
     note:document.getElementById('cakeNote').value,
     created:existing?.created||todayIso(),modified_at:nowIso(),
@@ -399,6 +408,11 @@ function saveDonut(status){
   const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value);
   const calc=donutCalc(),names={bomboloni:'Bomboloni Assorted',ring_glazed:'Original Glazed Ring Donuts',ring_assorted:'Ring Donut Assorted'};
   const dep=Number(document.getElementById('donutDeposit').value||0);
+  const minConfirm=minimumConfirmDeposit(calc.total,0);
+  if(status==='Confirmed' && dep+0.001<minConfirm){
+    alert('This quotation cannot be confirmed yet.\n\nMinimum payment required: '+money(minConfirm)+'\n\nFor this order the minimum is 25% of the total, rounded up to a whole dollar.\n\nSave it as a Quote if the customer is not ready to pay the advance.');
+    return;
+  }
   const existing=S.editingOrderId?findOrder(S.editingOrderId):null;
   const syncId=existing?orderKey(existing):uid();
   const o={
@@ -406,7 +420,7 @@ function saveDonut(status){
     date:document.getElementById('donutDate').value||todayIso(),base_cost:0,cost:0,
     packaging_type:'Donut box',packaging_cost:0,customisation:0,
     delivery_needed:document.getElementById('donutDeliveryNeeded').value==='yes',
-    delivery_charge:calc.delivery,price:calc.total,deposit:dep,status,
+    delivery_charge:calc.delivery,price:calc.total,deposit:dep,status,minimum_deposit_required:minConfirm,
     workflow_status:status==='Confirmed'?'Confirmed':(existing?.workflow_status||''),
     note:document.getElementById('donutFlavours').value,donut_kind:kind,donut_menu_price:calc.base,
     created:existing?.created||todayIso(),modified_at:nowIso(),items:[]
@@ -472,6 +486,13 @@ function openOrderDetail(id){
     receiptBtn.disabled=!receiptReady;
     receiptBtn.onclick=receiptReady?(()=>openPosReceipt(o)):null;
   }
+  const quoteBtn=document.getElementById('orderQuoteBtn');
+  if(quoteBtn){
+    const quoteReady=String(o.status||'').toLowerCase()==='quotation'||!!o.quote_no;
+    quoteBtn.hidden=!quoteReady;
+    quoteBtn.disabled=!quoteReady;
+    quoteBtn.onclick=quoteReady?(()=>openQuotation(o)):null;
+  }
   const receiptHelp=document.getElementById('orderReceiptHelp');
   if(receiptHelp)receiptHelp.hidden=!receiptReady;
   const completeBtn=document.getElementById('completeOrderBtn');
@@ -501,7 +522,7 @@ function canvasRoundedRect(ctx,x,y,w,h,r){
 }
 function loadReceiptLogo(){
   return new Promise(resolve=>{
-    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=23';
+    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=24';
   });
 }
 function loadFacebookReviewQr(){
@@ -535,7 +556,7 @@ async function buildPosReceiptCanvas(o){
   let y=logo?160:58;
   x.font='bold 34px Arial';x.fillText(b.name||'Sugar Canvas AU',width/2,y);y+=32;
   x.font='18px Arial';x.fillStyle='#6f5963';
-  if(b.abn){x.fillText('ABN '+b.abn,width/2,y);y+=26}
+  x.fillText('ABN '+(b.abn||'Not synced'),width/2,y);y+=26
   const contact=[b.email,b.phone].filter(Boolean).join('  •  ');
   if(contact){x.fillText(contact,width/2,y);y+=24}
   if(b.address){x.fillText(String(b.address).slice(0,70),width/2,y);y+=24}
@@ -597,8 +618,18 @@ async function buildPosReceiptCanvas(o){
   x.fillStyle='#6f5963';x.font='16px Arial';x.textAlign='center';
   x.fillText('Receipt for goods/services supplied by Sugar Canvas AU',width/2,y);y+=24;
   if(!b.gst_registered){x.fillText('GST has not been charged on this sale.',width/2,y);y+=24}
-  x.fillText('Please keep this receipt for your records.',width/2,y);y+=34;
-  x.fillText('Thank you for supporting Sugar Canvas',width/2,y);y+=42;
+  x.fillText('Please keep this receipt for your records.',width/2,y);y+=28;
+  const fb=b.facebook_url||'https://www.facebook.com/share/1E2qUGaMEP/', ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
+  x.font='15px Arial';x.fillText('Facebook: '+fb.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=22;
+  x.fillText('Instagram: '+ig.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=30;
+  x.font='16px Arial';x.fillText('Thank you for supporting Sugar Canvas',width/2,y);y+=34;
+  const firstCustomer=Number(cust.completed_order_count||0)<=1;
+  if(firstCustomer){
+    x.fillStyle='#38232d';x.font='bold 17px Arial';
+    x.fillText('New customer thank-you: 5% off your next order.',width/2,y);y+=25;
+    x.fillStyle='#6f5963';x.font='15px Arial';
+    x.fillText('Enjoyed your order? We would love your Facebook review.',width/2,y);y+=34;
+  }
 
   const qr=await loadFacebookReviewQr();
   if(qr){
@@ -621,7 +652,7 @@ async function sharePosReceipt(o){
   try{
     const {file}=await posReceiptFile(o);
     const cust=customerForOrder(o);
-    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:`Sugar Canvas paid receipt for ${o.customer||'customer'}${cust.email?' — '+cust.email:''}.`,files:[file]};
+    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:`Sugar Canvas paid receipt for ${o.customer||'customer'}${cust.email?' — '+cust.email:''}.\nFacebook: ${S.business?.facebook_url||'https://www.facebook.com/share/1E2qUGaMEP/'}\nInstagram: ${S.business?.instagram_url||'https://www.instagram.com/sugarcanvas.au'}`,files:[file]};
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
       await navigator.share(data);return;
     }
@@ -638,6 +669,86 @@ async function printPosReceipt(o){
   w.document.write(`<!doctype html><title>Sugar Canvas Receipt</title><style>@page{size:80mm auto;margin:4mm}body{margin:0;text-align:center}img{width:72mm;max-width:100%;height:auto}</style><img src="${url}" onload="setTimeout(()=>window.print(),250)">`);
   w.document.close();
 }
+
+function quoteRef(o){
+  return String(o.quote_no||o.order_no||o.phone_sync_id||o.id||'QUOTE').trim();
+}
+async function buildQuoteCanvas(o){
+  const width=720,height=1420;
+  const c=document.createElement('canvas');c.width=width;c.height=height;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,width,height);
+  const b=S.business||{},cust=customerForOrder(o),left=55,right=width-55;
+  const total=Math.max(0,Number(o.price||0)), paid=Math.max(0,Number(o.deposit||0));
+  const minDep=Number(o.minimum_deposit_required||minimumConfirmDeposit(total,Number(o.cost||o.base_cost||0)));
+  const logo=await loadReceiptLogo();
+  if(logo){const max=110,scale=Math.min(max/logo.width,max/logo.height);x.drawImage(logo,(width-logo.width*scale)/2,28,logo.width*scale,logo.height*scale)}
+  let y=logo?160:55;
+  x.textAlign='center';x.fillStyle='#38232d';x.font='bold 34px Arial';x.fillText(b.name||'Sugar Canvas AU',width/2,y);y+=32;
+  x.fillStyle='#6f5963';x.font='18px Arial';x.fillText('ABN '+(b.abn||'Not synced'),width/2,y);y+=25;
+  const contact=[b.email,b.phone].filter(Boolean).join(' • ');if(contact){x.fillText(contact,width/2,y);y+=24}
+  x.fillStyle='#38232d';x.font='bold 24px Arial';x.fillText('QUOTATION',width/2,y+8);y+=48;
+  x.fillStyle='#6f5963';x.font='15px Arial';x.fillText('This is a quotation, not an invoice.',width/2,y);y+=32;
+  x.strokeStyle='#cdb7c1';x.setLineDash([8,7]);x.beginPath();x.moveTo(45,y);x.lineTo(width-45,y);x.stroke();x.setLineDash([]);y+=34;
+
+  function row(label,value,bold=false){
+    x.textAlign='left';x.fillStyle='#38232d';x.font=(bold?'bold ':'')+'18px Arial';x.fillText(label,left,y);
+    x.textAlign='right';x.fillText(String(value??'—'),right,y);y+=31;
+  }
+  row('Quotation No.',quoteRef(o),true);row('Date issued',todayIso());row('Customer',o.customer||'Customer');
+  if(cust.email)row('Customer email',cust.email);
+  row('Delivery date',o.date||'—');
+  y+=8;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=34;
+
+  x.textAlign='left';x.fillStyle='#38232d';x.font='bold 18px Arial';x.fillText('Description',left,y);
+  x.textAlign='center';x.fillText('Qty',520,y);x.textAlign='right';x.fillText('Amount',right,y);y+=30;
+  let itemName=titleItem(o.item||o.recipe||'Order');
+  if(Number(o.target_weight_g||0)>0)itemName+=' • '+Math.round(Number(o.target_weight_g))+' g';
+  x.textAlign='left';x.font='bold 19px Arial';x.fillText(itemName.slice(0,48),left,y);
+  x.textAlign='center';x.fillText(String(Math.max(1,Number(o.quantity||1))),520,y);
+  x.textAlign='right';x.fillText(money(total),right,y);y+=38;
+
+  if(o.note){x.textAlign='left';x.fillStyle='#6f5963';x.font='15px Arial';x.fillText('Notes: '+String(o.note).slice(0,72),left,y);y+=32}
+  x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=38;
+  row('QUOTATION TOTAL',money(total),true);
+  if(paid>0)row('Already paid',money(paid));
+  row('Minimum to confirm',money(minDep),true);
+
+  y+=18;x.fillStyle='#fff2f7';canvasRoundedRect(x,45,y,width-90,145,18);x.fill();
+  x.fillStyle='#8a124c';x.textAlign='center';x.font='bold 18px Arial';x.fillText('CONFIRMATION TERMS',width/2,y+34);
+  x.fillStyle='#38232d';x.font='16px Arial';
+  x.fillText('To confirm this quotation and reserve the order,',width/2,y+63);
+  x.fillText('a minimum payment of '+money(minDep)+' is required.',width/2,y+88);
+  x.font='14px Arial';x.fillStyle='#6f5963';
+  x.fillText('Minimum = higher of 25% of total or order cost price,',width/2,y+114);
+  x.fillText('rounded up to the next whole dollar.',width/2,y+135);y+=180;
+
+  const fb=b.facebook_url||'https://www.facebook.com/share/1E2qUGaMEP/',ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
+  x.fillStyle='#6f5963';x.font='15px Arial';x.textAlign='center';
+  x.fillText('Facebook: '+fb.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=23;
+  x.fillText('Instagram: '+ig.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=30;
+
+  const qr=await loadFacebookReviewQr();
+  if(qr){const size=140;x.drawImage(qr,(width-size)/2,y,size,size);y+=size+24;x.fillStyle='#38232d';x.font='bold 17px Arial';x.fillText('Scan for Sugar Canvas on Facebook',width/2,y)}
+  return c;
+}
+async function quoteFile(o){
+  const canvas=await buildQuoteCanvas(o);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png',1));
+  return {canvas,blob,file:new File([blob],`Sugar_Canvas_Quotation_${quoteRef(o).replace(/[^A-Za-z0-9_-]/g,'_')}.png`,{type:'image/png'})};
+}
+async function shareQuote(o){
+  try{const {file}=await quoteFile(o);const data={title:'Sugar Canvas Quotation '+quoteRef(o),text:`Sugar Canvas quotation for ${o.customer||'customer'}.\nFacebook: ${S.business?.facebook_url||'https://www.facebook.com/share/1E2qUGaMEP/'}\nInstagram: ${S.business?.instagram_url||'https://www.instagram.com/sugarcanvas.au'}`,files:[file]};if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share(data);return}alert('Use Save Quotation or Print / Save PDF on this phone.')}catch(e){if(e?.name!=='AbortError')alert('Could not share quotation: '+e.message)}
+}
+async function saveQuoteFile(o){const {blob,file}=await quoteFile(o);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+async function printQuote(o){const {canvas}=await quoteFile(o);const w=window.open('','_blank');if(!w){alert('Allow pop-ups to print or save this quotation as PDF.');return}const url=canvas.toDataURL('image/png');w.document.write(`<!doctype html><title>Sugar Canvas Quotation</title><style>@page{size:A4;margin:8mm}body{margin:0;text-align:center}img{width:190mm;max-width:100%;height:auto}</style><img src="${url}"><script>onload=()=>setTimeout(()=>print(),250)<\/script>`);w.document.close()}
+async function openQuotation(o){
+  const old=document.getElementById('quoteOverlay');if(old)old.remove();
+  const wrap=document.createElement('div');wrap.id='quoteOverlay';wrap.style.cssText='position:fixed;inset:0;z-index:20000;background:rgba(25,15,20,.72);padding:14px;overflow:auto;display:flex;align-items:flex-start;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:white;border-radius:20px;padding:14px;width:min(430px,100%);margin:14px auto';
+  card.innerHTML='<div style="font-size:20px;font-weight:900;text-align:center;margin:4px 0 12px">Sugar Canvas Quotation</div><div id="quotePreview" style="text-align:center">Preparing quotation…</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button id="shareQuote">Share / Email</button><button id="saveQuote" class="secondary">Save Quotation</button><button id="printQuote" class="secondary">Print / Save PDF</button><button id="closeQuote" class="secondary">Close</button></div>';
+  wrap.appendChild(card);document.body.appendChild(wrap);const {canvas}=await quoteFile(o);canvas.style.cssText='width:100%;height:auto;border:1px solid #eee;border-radius:8px';const prev=document.getElementById('quotePreview');prev.innerHTML='';prev.appendChild(canvas);
+  document.getElementById('shareQuote').onclick=()=>shareQuote(o);document.getElementById('saveQuote').onclick=()=>saveQuoteFile(o);document.getElementById('printQuote').onclick=()=>printQuote(o);document.getElementById('closeQuote').onclick=()=>wrap.remove();
+}
+
 async function openPosReceipt(o){
   const old=document.getElementById('posReceiptOverlay');if(old)old.remove();
   const wrap=document.createElement('div');wrap.id='posReceiptOverlay';
@@ -992,7 +1103,7 @@ document.getElementById('deletePurchaseBtn').onclick=()=>{
 
 function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
 function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
-  document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
+  document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Business ABN synced:</b> ${S.business?.abn||'Not received from laptop yet'}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
 function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
 document.getElementById('importLaptop').addEventListener('change',async e=>{
   const f=e.target.files[0];
