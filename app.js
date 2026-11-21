@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='21.0.0';
+const APP_VERSION='22.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -501,51 +501,97 @@ function canvasRoundedRect(ctx,x,y,w,h,r){
 }
 function loadReceiptLogo(){
   return new Promise(resolve=>{
-    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=21';
+    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=22';
   });
 }
 async function buildPosReceiptCanvas(o){
-  const width=720, height=1120;
+  const width=720, height=1320;
   const c=document.createElement('canvas');c.width=width;c.height=height;
   const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,width,height);
+  const b=S.business||{}, cust=customerForOrder(o);
+  const total=Number(o.price||0), paid=Number(o.deposit||0), balance=Math.max(0,total-paid);
+  const delivery=Math.max(0,Number(o.delivery_charge||0));
+  const goodsTotal=Math.max(0,total-delivery);
+  const qty=Math.max(1,Number(o.quantity||1));
+  const receiptNo=receiptRef(o);
+  const orderNo=String(o.order_no||o.quote_no||o.phone_sync_id||o.id||'').trim();
+  const issueDate=todayIso();
+  const saleDate=o.completed_date||o.full_payment_date||o.date||issueDate;
+
   x.fillStyle='#38232d';x.textAlign='center';
   const logo=await loadReceiptLogo();
   if(logo){
-    const max=120,scale=Math.min(max/logo.width,max/logo.height);
-    x.drawImage(logo,(width-logo.width*scale)/2,36,logo.width*scale,logo.height*scale);
+    const max=110,scale=Math.min(max/logo.width,max/logo.height);
+    x.drawImage(logo,(width-logo.width*scale)/2,30,logo.width*scale,logo.height*scale);
   }
-  const b=S.business||{}, cust=customerForOrder(o), total=Number(o.price||0), paid=Number(o.deposit||0), balance=Math.max(0,total-paid);
-  let y=logo?180:70;
-  x.font='bold 34px Arial';x.fillText(b.name||'Sugar Canvas AU',width/2,y);y+=34;
-  x.font='20px Arial'; if(b.abn){x.fillText('ABN '+b.abn,width/2,y);y+=28}
-  x.font='18px Arial';x.fillStyle='#6f5963';x.fillText('PAID RECEIPT',width/2,y);y+=42;
-  x.strokeStyle='#cdb7c1';x.setLineDash([8,7]);x.beginPath();x.moveTo(45,y);x.lineTo(width-45,y);x.stroke();x.setLineDash([]);y+=35;
+  let y=logo?160:58;
+  x.font='bold 34px Arial';x.fillText(b.name||'Sugar Canvas AU',width/2,y);y+=32;
+  x.font='18px Arial';x.fillStyle='#6f5963';
+  if(b.abn){x.fillText('ABN '+b.abn,width/2,y);y+=26}
+  const contact=[b.email,b.phone].filter(Boolean).join('  •  ');
+  if(contact){x.fillText(contact,width/2,y);y+=24}
+  if(b.address){x.fillText(String(b.address).slice(0,70),width/2,y);y+=24}
+  x.font='bold 21px Arial';x.fillStyle='#38232d';x.fillText('RECEIPT',width/2,y+10);y+=48;
+
+  x.strokeStyle='#cdb7c1';x.setLineDash([8,7]);x.beginPath();x.moveTo(45,y);x.lineTo(width-45,y);x.stroke();x.setLineDash([]);y+=34;
 
   const left=55,right=width-55;
   function row(label,value,bold=false){
-    x.textAlign='left';x.fillStyle='#38232d';x.font=(bold?'bold ':'')+'20px Arial';x.fillText(label,left,y);
-    x.textAlign='right';x.font=(bold?'bold ':'')+'20px Arial';x.fillText(String(value),right,y);y+=34;
+    x.textAlign='left';x.fillStyle='#38232d';x.font=(bold?'bold ':'')+'19px Arial';x.fillText(label,left,y);
+    x.textAlign='right';x.font=(bold?'bold ':'')+'19px Arial';x.fillText(String(value||'—'),right,y);y+=32;
   }
-  row('Receipt / Order',receiptRef(o));
-  row('Date',o.completed_date||o.full_payment_date||todayIso());
+
+  row('Receipt No.',receiptNo,true);
+  if(orderNo && orderNo!==receiptNo)row('Order No.',orderNo);
+  row('Date issued',issueDate);
+  row('Sale / completed',saleDate);
   row('Customer',o.customer||'Customer');
-  if(cust.email)row('Email',cust.email);
-  y+=8;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=34;
-  const itemName=titleItem(o.item||o.recipe||'Order');
-  row((Number(o.quantity||1)>1?Number(o.quantity||1)+' × ':'')+itemName,money(total-Number(o.delivery_charge||0)),true);
-  if(Number(o.delivery_charge||0)>0)row('Delivery',money(o.delivery_charge));
+  if(cust.email)row('Customer email',cust.email);
+
+  y+=10;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=34;
+
+  x.textAlign='left';x.fillStyle='#38232d';x.font='bold 18px Arial';x.fillText('Description',left,y);
+  x.textAlign='center';x.fillText('Qty',520,y);
+  x.textAlign='right';x.fillText('Amount',right,y);y+=28;
+  x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=30;
+
+  let itemName=titleItem(o.item||o.recipe||'Order');
+  if(Number(o.target_weight_g||0)>0) itemName += ' • '+Math.round(Number(o.target_weight_g))+' g';
+  const hasExtras=Array.isArray(o.items) && o.items.some(it=>String(it.item_type||'').toLowerCase()==='add-on');
+  if(hasExtras || Number(o.customisation||0)>0) itemName += ' • incl. selected add-ons/customisation';
+  x.textAlign='left';x.fillStyle='#38232d';x.font='bold 19px Arial';
+  const maxDesc=46;
+  const descLines=itemName.length>maxDesc?[itemName.slice(0,maxDesc),itemName.slice(maxDesc,maxDesc*2)]:[itemName];
+  descLines.forEach((line,i)=>x.fillText(line,left,y+i*25));
+  x.textAlign='center';x.fillText(String(qty),520,y);
+  x.textAlign='right';x.fillText(money(goodsTotal),right,y);
+  y+=descLines.length*25+18;
+
+  if(delivery>0){
+    x.textAlign='left';x.font='19px Arial';x.fillText('Delivery',left,y);
+    x.textAlign='center';x.fillText('1',520,y);
+    x.textAlign='right';x.fillText(money(delivery),right,y);y+=34;
+  }
+
   y+=8;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=38;
   row('TOTAL',money(total),true);
-  row('PAID',money(paid),true);
-  row('BALANCE',money(balance),true);
-  row('Payment',latestPaymentMethods(o));
-  y+=25;
-  x.fillStyle='#159a68';canvasRoundedRect(x,150,y,width-300,72,18);x.fill();
-  x.fillStyle='white';x.textAlign='center';x.font='bold 28px Arial';x.fillText('PAID IN FULL',width/2,y+47);y+=115;
-  x.fillStyle='#6f5963';x.font='17px Arial';
-  if(b.email)x.fillText(b.email,width/2,y),y+=24;
-  if(b.phone)x.fillText(b.phone,width/2,y),y+=24;
-  x.fillText('Thank you for supporting Sugar Canvas',width/2,y+14);
+  if(!b.gst_registered){
+    row('GST','Not registered for GST');
+  }
+  row('AMOUNT PAID',money(paid),true);
+  row('BALANCE DUE',money(balance),true);
+  row('Payment method',latestPaymentMethods(o));
+
+  y+=28;
+  x.fillStyle='#159a68';canvasRoundedRect(x,150,y,width-300,70,18);x.fill();
+  x.fillStyle='white';x.textAlign='center';x.font='bold 27px Arial';x.fillText('PAID IN FULL',width/2,y+46);y+=110;
+
+  x.fillStyle='#6f5963';x.font='16px Arial';x.textAlign='center';
+  x.fillText('Receipt for goods/services supplied by Sugar Canvas AU',width/2,y);y+=24;
+  if(!b.gst_registered){x.fillText('GST has not been charged on this sale.',width/2,y);y+=24}
+  x.fillText('Please keep this receipt for your records.',width/2,y);y+=34;
+  x.fillText('Thank you for supporting Sugar Canvas',width/2,y);
+
   return c;
 }
 async function posReceiptFile(o){
