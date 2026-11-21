@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/share/1E2qUGaMEP/',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='26.0.0';
+const APP_VERSION='27.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -91,7 +91,9 @@ function adjustedPackagingCost(rawCost){
 }
 
 function minimumConfirmDeposit(total,cost){
-  return Math.ceil(Math.max(0,Number(total||0)*0.25,Number(cost||0)));
+  const t=Math.max(0,Number(total||0));
+  if(t<=0)return 0;
+  return Math.min(t,Math.ceil(Math.max(t*0.25,Math.max(0,Number(cost||0)))));
 }
 function getSelectedAddonRows(){
   const w=Number(document.getElementById('cakeWeight').value||500);
@@ -783,7 +785,9 @@ async function buildQuoteCanvas(o){
   const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,width,height);
   const b=S.business||{},cust=customerForOrder(o),left=55,right=width-55;
   const total=Math.max(0,Number(o.price||0)), paid=Math.max(0,Number(o.deposit||0));
-  const minDep=Number(o.minimum_deposit_required||minimumConfirmDeposit(total,Number(o.cost||o.base_cost||0)));
+  const storedMin=Number(o.minimum_deposit_required||0);
+  const minDep=minimumConfirmDeposit(total,Number(o.cost||o.base_cost||0));
+  const amountToConfirm=Math.max(0,Math.min(total,minDep)-paid);
   const logo=await loadReceiptLogo();
   if(logo){const max=110,scale=Math.min(max/logo.width,max/logo.height);x.drawImage(logo,(width-logo.width*scale)/2,28,logo.width*scale,logo.height*scale)}
   let y=logo?160:55;
@@ -826,12 +830,13 @@ async function buildQuoteCanvas(o){
   x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=38;
   row('QUOTATION TOTAL',money(total),true);
   if(paid>0)row('Already paid',money(paid));
-  row('Minimum to confirm',money(minDep),true);
+  row('Minimum total deposit',money(minDep),true);
+  if(paid>0)row('Additional payment to confirm',money(amountToConfirm),true);
 
   y+=18;const payid=String(b.payid||'').trim();const boxH=payid?160:125;x.fillStyle='#fff2f7';canvasRoundedRect(x,45,y,width-90,boxH,18);x.fill();
   x.fillStyle='#8a124c';x.textAlign='center';x.font='bold 18px Arial';x.fillText('TO CONFIRM YOUR ORDER',width/2,y+32);
-  x.fillStyle='#38232d';x.font='16px Arial';x.fillText('Minimum payment required:',width/2,y+61);
-  x.font='bold 22px Arial';x.fillText(money(minDep),width/2,y+89);
+  x.fillStyle='#38232d';x.font='16px Arial';x.fillText(paid>0?'Additional payment required:':'Minimum payment required:',width/2,y+61);
+  x.font='bold 22px Arial';x.fillText(money(paid>0?amountToConfirm:minDep),width/2,y+89);
   x.font='15px Arial';if(payid){x.fillText('PayID: '+payid,width/2,y+118);x.fillText('Payment reference: '+quoteRef(o),width/2,y+143);}else{x.fillText('Payment reference: '+quoteRef(o),width/2,y+118);}y+=boxH+35;
 
   const fb=b.facebook_url||'https://www.facebook.com/share/1E2qUGaMEP/',ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
