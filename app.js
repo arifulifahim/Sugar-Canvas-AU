@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='20.0.0';
+const APP_VERSION='21.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -461,13 +461,19 @@ function openOrderDetail(id){
   }
   html+=`<div class="card detail-card"><div class="detail-section-title">Cost & Price</div>${detailRow('Full Cost',money(o.cost||o.base_cost||0))}${Number(o.addon_cost||0)>0?detailRow('Add-On Cost',money(o.addon_cost)):''}${Number(o.packaging_cost||0)>0?detailRow('Packaging Cost',money(o.packaging_cost)):''}${Number(o.customisation||0)>0?detailRow('Customization Cost',money(o.customisation)):''}${Number(o.profit_percent||0)>0?detailRow('Profit %',`${Number(o.profit_percent).toFixed(0)}%`):''}${detailRow('Delivery',o.delivery_needed?`Yes • ${money(o.delivery_charge)}`:'Pickup')}${detailRow('Customer Price',money(o.price))}${detailRow('Deposit',money(o.deposit))}${detailRow('Balance',money(remaining))}</div>`;
   if(o.note)html+=`<div class="card detail-card"><div class="detail-section-title">Notes</div><div>${o.note}</div></div>`;
-  const receiptReady=['completed','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase()) && Math.max(0,Number(o.price||0)-Number(o.deposit||0))<=0.01;
-  if(receiptReady){
-    html+=`<div class="card detail-card"><div class="detail-section-title">Customer Receipt</div><div class="small">Generate the POS-style paid receipt now or anytime later.</div><button id="generatePosReceiptBtn" class="wide" type="button">🧾 Generate Receipt</button></div>`;
-  }
+  const receiptReady=(
+    ['completed','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase()) ||
+    String(o.payment_state||'').toLowerCase()==='paid in full'
+  ) && Math.max(0,Number(o.price||0)-Number(o.deposit||0))<=0.01;
   box.innerHTML=html;
-  const receiptBtn=document.getElementById('generatePosReceiptBtn');
-  if(receiptBtn)receiptBtn.onclick=()=>openPosReceipt(o);
+  const receiptBtn=document.getElementById('orderReceiptBtn');
+  if(receiptBtn){
+    receiptBtn.hidden=!receiptReady;
+    receiptBtn.disabled=!receiptReady;
+    receiptBtn.onclick=receiptReady?(()=>openPosReceipt(o)):null;
+  }
+  const receiptHelp=document.getElementById('orderReceiptHelp');
+  if(receiptHelp)receiptHelp.hidden=!receiptReady;
   const completeBtn=document.getElementById('completeOrderBtn');
   const finalStatus=String(o.workflow_status||o.status||'').toLowerCase();
   const completed=['completed','finalised','cancelled'].includes(finalStatus);
@@ -495,7 +501,7 @@ function canvasRoundedRect(ctx,x,y,w,h,r){
 }
 function loadReceiptLogo(){
   return new Promise(resolve=>{
-    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=20';
+    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=21';
   });
 }
 async function buildPosReceiptCanvas(o){
