@@ -6,15 +6,15 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='19.0.0';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='20.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function decodeB64urlJson(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0)));return JSON.parse(new TextDecoder().decode(bytes))}
 async function hmacHex(secret,msg){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(msg));return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
+function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
   const changedCustomers=new Set(Object.keys(S.changes.customers||{}));const changedOrders=new Set(Object.keys(S.changes.orders||{}));
   const byCid=new Map(S.customers.map(c=>[c.phone_sync_id||c.id,c]));(p.customers||[]).forEach(c=>{const id=c.phone_sync_id||c.id;if(clearChanges||!changedCustomers.has(id))byCid.set(id,c)});S.customers=[...byCid.values()];
   const byOid=new Map(S.orders.map(o=>[o.phone_sync_id||o.id||o.order_no,o]));(p.orders||[]).forEach(o=>{const id=o.phone_sync_id||o.id||o.order_no;if(clearChanges||!changedOrders.has(id))byOid.set(id,o)});S.orders=[...byOid.values()];
@@ -324,8 +324,8 @@ document.getElementById('reviewCakePrice').onclick=()=>{
 };
 
 function addCustomer(){
-  const name=prompt('Customer name');if(!name)return null;const phone=prompt('Phone number (optional)')||'';const address=prompt('Address (optional)')||'';
-  const c={id:uid(),phone_sync_id:uid(),name:name.trim(),phone,address,social:'',modified_at:nowIso()};S.customers.push(c);markCustomer(c);save();return c;
+  const name=prompt('Customer name');if(!name)return null;const phone=prompt('Phone number (optional)')||'';const email=prompt('Email (optional)')||'';const address=prompt('Address (optional)')||'';
+  const c={id:uid(),phone_sync_id:uid(),name:name.trim(),phone,email,address,social:'',modified_at:nowIso()};S.customers.push(c);markCustomer(c);save();return c;
 }
 document.getElementById('addCustomerBtn').onclick=addCustomer;document.getElementById('cakeAddCustomer').onclick=()=>{const c=addCustomer();if(c)document.getElementById('cakeCustomer').value=c.name};document.getElementById('donutAddCustomer').onclick=()=>{const c=addCustomer();if(c)document.getElementById('donutCustomer').value=c.name};
 function saveCake(status){
@@ -461,7 +461,13 @@ function openOrderDetail(id){
   }
   html+=`<div class="card detail-card"><div class="detail-section-title">Cost & Price</div>${detailRow('Full Cost',money(o.cost||o.base_cost||0))}${Number(o.addon_cost||0)>0?detailRow('Add-On Cost',money(o.addon_cost)):''}${Number(o.packaging_cost||0)>0?detailRow('Packaging Cost',money(o.packaging_cost)):''}${Number(o.customisation||0)>0?detailRow('Customization Cost',money(o.customisation)):''}${Number(o.profit_percent||0)>0?detailRow('Profit %',`${Number(o.profit_percent).toFixed(0)}%`):''}${detailRow('Delivery',o.delivery_needed?`Yes • ${money(o.delivery_charge)}`:'Pickup')}${detailRow('Customer Price',money(o.price))}${detailRow('Deposit',money(o.deposit))}${detailRow('Balance',money(remaining))}</div>`;
   if(o.note)html+=`<div class="card detail-card"><div class="detail-section-title">Notes</div><div>${o.note}</div></div>`;
+  const receiptReady=['completed','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase()) && Math.max(0,Number(o.price||0)-Number(o.deposit||0))<=0.01;
+  if(receiptReady){
+    html+=`<div class="card detail-card"><div class="detail-section-title">Customer Receipt</div><div class="small">Generate the POS-style paid receipt now or anytime later.</div><button id="generatePosReceiptBtn" class="wide" type="button">🧾 Generate Receipt</button></div>`;
+  }
   box.innerHTML=html;
+  const receiptBtn=document.getElementById('generatePosReceiptBtn');
+  if(receiptBtn)receiptBtn.onclick=()=>openPosReceipt(o);
   const completeBtn=document.getElementById('completeOrderBtn');
   const finalStatus=String(o.workflow_status||o.status||'').toLowerCase();
   const completed=['completed','finalised','cancelled'].includes(finalStatus);
@@ -473,6 +479,109 @@ function openOrderDetail(id){
   }
   go('orderDetail');
 }
+
+function customerForOrder(o){
+  return (S.customers||[]).find(c=>String(c.name||'').trim().toLowerCase()===String(o.customer||'').trim().toLowerCase())||{};
+}
+function receiptRef(o){
+  return String(o.invoice_no||o.order_no||o.quote_no||o.phone_sync_id||o.id||'ORDER').trim();
+}
+function latestPaymentMethods(o){
+  const methods=[...new Set((o.payments||[]).map(p=>String(p.method||'').trim()).filter(Boolean))];
+  return methods.length?methods.join(' + '):'Not recorded';
+}
+function canvasRoundedRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function loadReceiptLogo(){
+  return new Promise(resolve=>{
+    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=20';
+  });
+}
+async function buildPosReceiptCanvas(o){
+  const width=720, height=1120;
+  const c=document.createElement('canvas');c.width=width;c.height=height;
+  const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,width,height);
+  x.fillStyle='#38232d';x.textAlign='center';
+  const logo=await loadReceiptLogo();
+  if(logo){
+    const max=120,scale=Math.min(max/logo.width,max/logo.height);
+    x.drawImage(logo,(width-logo.width*scale)/2,36,logo.width*scale,logo.height*scale);
+  }
+  const b=S.business||{}, cust=customerForOrder(o), total=Number(o.price||0), paid=Number(o.deposit||0), balance=Math.max(0,total-paid);
+  let y=logo?180:70;
+  x.font='bold 34px Arial';x.fillText(b.name||'Sugar Canvas AU',width/2,y);y+=34;
+  x.font='20px Arial'; if(b.abn){x.fillText('ABN '+b.abn,width/2,y);y+=28}
+  x.font='18px Arial';x.fillStyle='#6f5963';x.fillText('PAID RECEIPT',width/2,y);y+=42;
+  x.strokeStyle='#cdb7c1';x.setLineDash([8,7]);x.beginPath();x.moveTo(45,y);x.lineTo(width-45,y);x.stroke();x.setLineDash([]);y+=35;
+
+  const left=55,right=width-55;
+  function row(label,value,bold=false){
+    x.textAlign='left';x.fillStyle='#38232d';x.font=(bold?'bold ':'')+'20px Arial';x.fillText(label,left,y);
+    x.textAlign='right';x.font=(bold?'bold ':'')+'20px Arial';x.fillText(String(value),right,y);y+=34;
+  }
+  row('Receipt / Order',receiptRef(o));
+  row('Date',o.completed_date||o.full_payment_date||todayIso());
+  row('Customer',o.customer||'Customer');
+  if(cust.email)row('Email',cust.email);
+  y+=8;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=34;
+  const itemName=titleItem(o.item||o.recipe||'Order');
+  row((Number(o.quantity||1)>1?Number(o.quantity||1)+' × ':'')+itemName,money(total-Number(o.delivery_charge||0)),true);
+  if(Number(o.delivery_charge||0)>0)row('Delivery',money(o.delivery_charge));
+  y+=8;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=38;
+  row('TOTAL',money(total),true);
+  row('PAID',money(paid),true);
+  row('BALANCE',money(balance),true);
+  row('Payment',latestPaymentMethods(o));
+  y+=25;
+  x.fillStyle='#159a68';canvasRoundedRect(x,150,y,width-300,72,18);x.fill();
+  x.fillStyle='white';x.textAlign='center';x.font='bold 28px Arial';x.fillText('PAID IN FULL',width/2,y+47);y+=115;
+  x.fillStyle='#6f5963';x.font='17px Arial';
+  if(b.email)x.fillText(b.email,width/2,y),y+=24;
+  if(b.phone)x.fillText(b.phone,width/2,y),y+=24;
+  x.fillText('Thank you for supporting Sugar Canvas',width/2,y+14);
+  return c;
+}
+async function posReceiptFile(o){
+  const canvas=await buildPosReceiptCanvas(o);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png',1));
+  return {canvas,blob,file:new File([blob],\`Sugar_Canvas_Receipt_\${receiptRef(o).replace(/[^A-Za-z0-9_-]/g,'_')}.png\`,{type:'image/png'})};
+}
+async function sharePosReceipt(o){
+  try{
+    const {file}=await posReceiptFile(o);
+    const cust=customerForOrder(o);
+    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:\`Sugar Canvas paid receipt for \${o.customer||'customer'}\${cust.email?' — '+cust.email:''}.\`,files:[file]};
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share(data);return;
+    }
+    alert('This phone does not support sharing the receipt file directly. Use Save Receipt or Print / Save PDF instead.');
+  }catch(e){if(e?.name!=='AbortError')alert('Could not share receipt: '+e.message)}
+}
+async function savePosReceipt(o){
+  const {blob,file}=await posReceiptFile(o);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+}
+async function printPosReceipt(o){
+  const {canvas}=await posReceiptFile(o);const w=window.open('','_blank');
+  if(!w){alert('Allow pop-ups to print or save this receipt as PDF.');return}
+  const url=canvas.toDataURL('image/png');
+  w.document.write(\`<!doctype html><title>Sugar Canvas Receipt</title><style>@page{size:80mm auto;margin:4mm}body{margin:0;text-align:center}img{width:72mm;max-width:100%;height:auto}</style><img src="\${url}" onload="setTimeout(()=>window.print(),250)">\`);
+  w.document.close();
+}
+async function openPosReceipt(o){
+  const old=document.getElementById('posReceiptOverlay');if(old)old.remove();
+  const wrap=document.createElement('div');wrap.id='posReceiptOverlay';
+  wrap.style.cssText='position:fixed;inset:0;z-index:20000;background:rgba(25,15,20,.72);padding:14px;overflow:auto;display:flex;align-items:flex-start;justify-content:center';
+  const card=document.createElement('div');card.style.cssText='background:white;border-radius:20px;padding:14px;width:min(430px,100%);margin:14px auto';
+  card.innerHTML='<div style="font-size:20px;font-weight:900;text-align:center;margin:4px 0 12px">Sugar Canvas Receipt</div><div id="posReceiptPreview" style="text-align:center">Preparing receipt…</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px"><button id="sharePosReceipt">Share / Email</button><button id="savePosReceipt" class="secondary">Save Receipt</button><button id="printPosReceipt" class="secondary">Print / Save PDF</button><button id="closePosReceipt" class="secondary">Close</button></div>';
+  wrap.appendChild(card);document.body.appendChild(wrap);
+  const {canvas}=await posReceiptFile(o);canvas.style.cssText='width:100%;height:auto;border:1px solid #eee;border-radius:8px';const prev=document.getElementById('posReceiptPreview');prev.innerHTML='';prev.appendChild(canvas);
+  document.getElementById('sharePosReceipt').onclick=()=>sharePosReceipt(o);
+  document.getElementById('savePosReceipt').onclick=()=>savePosReceipt(o);
+  document.getElementById('printPosReceipt').onclick=()=>printPosReceipt(o);
+  document.getElementById('closePosReceipt').onclick=()=>wrap.remove();
+}
+
 function completeSelectedOrder(){
   const o=findOrder(S.selectedOrderId);if(!o)return;
   const current=String(o.workflow_status||o.status||'').toLowerCase();
@@ -559,11 +668,11 @@ function completeSelectedOrder(){
   S.selectedOrderId=orderKey(o);
   save();
   openOrderDetail(S.selectedOrderId);
-  alert(
-    'Order completed and saved on the phone.\n\n'+
-    (o.receipt_requested?'Receipt requested. ':'No receipt requested now. ')+
-    'Tap Sync Now to update the laptop.'
-  );
+  if(o.receipt_requested){
+    setTimeout(()=>openPosReceipt(o),120);
+  }else{
+    alert('Order completed and saved.\n\nNo receipt generated now. You can open this completed order later and tap Generate Receipt at any time.\n\nTap Sync Now to update the laptop.');
+  }
 }
 function startEditOrder(id){
   const o=findOrder(id);if(!o)return;
