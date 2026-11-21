@@ -1,6 +1,6 @@
-const CACHE='sugar-canvas-phone-v22-ato-record-receipt';
-const ASSETS=['./?v=22','index.html?v=22','app.css?v=22','app.js?v=22','manifest.webmanifest?v=22','version.json?v=22','logo-96.png','logo-192.png','logo-512.png','sugar-canvas-logo.png?v=22'];
+const CACHE='sugar-canvas-phone-v23-facebook-review-qr';
+const ASSETS=['./?v=23','index.html?v=23','app.css?v=23','app.js?v=23','manifest.webmanifest?v=23','version.json?v=23','logo-96.png','logo-192.png','logo-512.png','sugar-canvas-logo.png?v=23'];
 self.addEventListener('install',e=>e.waitUntil((async()=>{const c=await caches.open(CACHE);for(const a of ASSETS){try{await c.add(a)}catch(err){}}await self.skipWaiting()})()));
 self.addEventListener('activate',e=>e.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim()})()));
 self.addEventListener('message',e=>{if(e.data&&e.data.type==='SKIP_WAITING')self.skipWaiting()});
-self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const url=new URL(e.request.url);if(url.origin!==location.origin)return;e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{if(r&&r.ok)caches.open(CACHE).then(c=>c.put(e.request,r.clone())).catch(()=>{});return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./?v=22')||caches.match('index.html?v=22'))))});
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const url=new URL(e.request.url);if(url.origin!==location.origin)return;e.respondWith(fetch(e.request,{cache:'no-store'}).then(r=>{if(r&&r.ok)caches.open(CACHE).then(c=>c.put(e.request,r.clone())).catch(()=>{});return r}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./?v=23')||caches.match('index.html?v=23'))))});
