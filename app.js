@@ -545,13 +545,13 @@ async function buildPosReceiptCanvas(o){
 async function posReceiptFile(o){
   const canvas=await buildPosReceiptCanvas(o);
   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png',1));
-  return {canvas,blob,file:new File([blob],\`Sugar_Canvas_Receipt_\${receiptRef(o).replace(/[^A-Za-z0-9_-]/g,'_')}.png\`,{type:'image/png'})};
+  return {canvas,blob,file:new File([blob],`Sugar_Canvas_Receipt_${receiptRef(o).replace(/[^A-Za-z0-9_-]/g,'_')}.png`,{type:'image/png'})};
 }
 async function sharePosReceipt(o){
   try{
     const {file}=await posReceiptFile(o);
     const cust=customerForOrder(o);
-    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:\`Sugar Canvas paid receipt for \${o.customer||'customer'}\${cust.email?' — '+cust.email:''}.\`,files:[file]};
+    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:`Sugar Canvas paid receipt for ${o.customer||'customer'}${cust.email?' — '+cust.email:''}.`,files:[file]};
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
       await navigator.share(data);return;
     }
@@ -565,7 +565,7 @@ async function printPosReceipt(o){
   const {canvas}=await posReceiptFile(o);const w=window.open('','_blank');
   if(!w){alert('Allow pop-ups to print or save this receipt as PDF.');return}
   const url=canvas.toDataURL('image/png');
-  w.document.write(\`<!doctype html><title>Sugar Canvas Receipt</title><style>@page{size:80mm auto;margin:4mm}body{margin:0;text-align:center}img{width:72mm;max-width:100%;height:auto}</style><img src="\${url}" onload="setTimeout(()=>window.print(),250)">\`);
+  w.document.write(`<!doctype html><title>Sugar Canvas Receipt</title><style>@page{size:80mm auto;margin:4mm}body{margin:0;text-align:center}img{width:72mm;max-width:100%;height:auto}</style><img src="${url}" onload="setTimeout(()=>window.print(),250)">`);
   w.document.close();
 }
 async function openPosReceipt(o){
