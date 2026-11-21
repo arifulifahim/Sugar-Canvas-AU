@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Sugar Canvas Update Repair</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#fff8fb;color:#38232d;margin:0;display:grid;min-height:100vh;place-items:center;padding:24px}
+.card{width:min(420px,100%);background:white;border:1px solid #f3c7da;border-radius:22px;padding:24px;text-align:center;box-shadow:0 16px 50px rgba(70,30,50,.12)}
+h1{color:#9d174d}.ring{width:76px;height:76px;border:8px solid #f5d3e4;border-top-color:#d9468f;border-radius:50%;margin:16px auto;animation:s .8s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}.bar{height:12px;background:#f5d3e4;border-radius:99px;overflow:hidden}.fill{height:100%;width:0;background:#d9468f;transition:.35s}
+.ok{font-size:72px;color:#13845e;display:none}.pct{font-size:28px;font-weight:800;margin:8px}
+button{margin-top:16px;background:#d9468f;color:white;border:0;border-radius:12px;padding:12px 18px;font-weight:800}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Sugar Canvas Repair Update</h1>
+<div id="ring" class="ring"></div>
+<div id="ok" class="ok">✓</div>
+<div id="pct" class="pct">0%</div>
+<div class="bar"><div id="fill" class="fill"></div></div>
+<p id="msg">Preparing repair…</p>
+<button id="retry" hidden>Try Again</button>
+</div>
+<script>
+const pct=document.getElementById('pct'),fill=document.getElementById('fill'),msg=document.getElementById('msg'),ring=document.getElementById('ring'),ok=document.getElementById('ok'),retry=document.getElementById('retry');
+function p(n,t){pct.textContent=n+'%';fill.style.width=n+'%';msg.textContent=t}
+async function repair(){
+ retry.hidden=true;ring.style.display='block';ok.style.display='none';
+ try{
+  p(10,'Removing the stuck updater…');
+  if('serviceWorker' in navigator){
+    const regs=await navigator.serviceWorker.getRegistrations();
+    for(const r of regs) await r.unregister();
+  }
+  p(35,'Clearing old app caches…');
+  if('caches' in window){
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(k=>k.startsWith('sugar-canvas-phone-')).map(k=>caches.delete(k)));
+  }
+  p(55,'Installing Sugar Canvas v16…');
+  const reg=await navigator.serviceWorker.register('./sw.js?v=16',{scope:'./',updateViaCache:'none'});
+  await reg.update();
+  await navigator.serviceWorker.ready;
+  p(85,'Activating the new app…');
+  if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});
+  await new Promise(r=>setTimeout(r,1800));
+  p(100,'Repair complete');
+  ring.style.display='none';ok.style.display='block';
+  setTimeout(()=>location.replace('./?v=16&repaired=1'),1200);
+ }catch(e){
+  ring.style.display='none';msg.textContent='Repair failed: '+e.message;retry.hidden=false;
+ }
+}
+retry.onclick=repair;
+repair();
+</script>
+</body></html>
