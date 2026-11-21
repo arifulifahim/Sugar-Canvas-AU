@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='22.0.0';
+const APP_VERSION='23.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -501,7 +501,15 @@ function canvasRoundedRect(ctx,x,y,w,h,r){
 }
 function loadReceiptLogo(){
   return new Promise(resolve=>{
-    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=22';
+    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=23';
+  });
+}
+function loadFacebookReviewQr(){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>resolve(null);
+    img.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXIAAAFyAQAAAADAX2ykAAACcElEQVR4nO2bQYrjMBBFX40MvZShD5CjKDebM80N7KPkAAP2MqDwZyHJcRiG0LTbHQ+lhYnstygoqlSqXzHxkTX++BAOzjvvvPPOO+/8v3irq8PMOhiXX8zt23lHe5zfmE+SpAkkZUjKQLwaECRJeuS/2h7nN+bnJULbVsPclU2N5F3tcf5reDvPZmY9kKbw9+Xp1e13/ikfpIGg4uQXsMf5DfgoaQAYe7AzQNK15OxyJu9rj/Ob8qPds3J7ML8JuJXyeV97nN+IR4+rRLKm9jk9fh5ezX7nn6zi1SSphq4yGqIELPVVrIj792j8cvG5dYyn3AnA0qXl4/SrB+a2fTn7nf8AP3cw2luN2nIIQ0nS32GP85/m2/k7BdWsHDNSu/re33l+PiS/nL8ZINRDmFgrrVpuKeP11SH55t+JWlpJGQ2sA7uAHr9H5Ft9FXOn0YKM+BtLU19eGwSAkG0fe5zflm95N66TdFGSBihN6KYpefwejy/xa9BlmN8Fc28QBcQJG09XE4D2scf5bXnW4m7ratz7G7WT5fXzsfnq5Lm2me3ndDMNMWPWB5Eub37/PSbf6qu55y72liYW8daRBhBcXV84Mm92kur8VX8zOxfpKKgJS8Hj98j8evRqCtLAzaSL2Up42NMe57fl7/OT5RAee2A8ZVpP2uevDspXx6UBYH5HzCFbmt5zcW0pnYeb+f3okPxDf/KuKgAa4jKV4/rv/8KvvJqmul2Nc7y8/c4/45esXOc3ahH9bfY4/xl+NZ9TROD6aNJvydnevzoq/9CfJDR9f9Ecqmtd/z0ob3rOrJb/v9t555133nnnN+D/AFHOtAVO5CMvAAAAAElFTkSuQmCC';
   });
 }
 async function buildPosReceiptCanvas(o){
@@ -590,7 +598,17 @@ async function buildPosReceiptCanvas(o){
   x.fillText('Receipt for goods/services supplied by Sugar Canvas AU',width/2,y);y+=24;
   if(!b.gst_registered){x.fillText('GST has not been charged on this sale.',width/2,y);y+=24}
   x.fillText('Please keep this receipt for your records.',width/2,y);y+=34;
-  x.fillText('Thank you for supporting Sugar Canvas',width/2,y);
+  x.fillText('Thank you for supporting Sugar Canvas',width/2,y);y+=42;
+
+  const qr=await loadFacebookReviewQr();
+  if(qr){
+    const qrSize=150;
+    x.drawImage(qr,(width-qrSize)/2,y,qrSize,qrSize);y+=qrSize+24;
+    x.fillStyle='#38232d';x.font='bold 18px Arial';x.textAlign='center';
+    x.fillText('Enjoyed your order?',width/2,y);y+=24;
+    x.fillStyle='#6f5963';x.font='16px Arial';
+    x.fillText('Scan to review Sugar Canvas on Facebook',width/2,y);
+  }
 
   return c;
 }
