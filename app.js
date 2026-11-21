@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='13.0.0';
+const APP_VERSION='14.0.0';
 let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -779,23 +779,133 @@ prune();
 save();
 async function setupAutoUpdates(){
   if(!('serviceWorker' in navigator))return;
+  const banner=document.getElementById('updateBanner');
+  const bannerText=document.getElementById('updateBannerText')||banner?.querySelector('span');
+  const btn=document.getElementById('updateNowBtn');
+  const overlay=document.getElementById('updateOverlay');
+  const spinner=document.getElementById('updateSpinner');
+  const success=document.getElementById('updateSuccess');
+  const title=document.getElementById('updateStatusTitle');
+  const percent=document.getElementById('updatePercent');
+  const bar=document.getElementById('updateProgressBar');
+  const status=document.getElementById('updateStatusText');
+  let reg=null,waitingWorker=null,updateBusy=false;
+
+  function setProgress(p,msg){
+    const n=Math.max(0,Math.min(100,Math.round(p)));
+    if(percent)percent.textContent=n+'%';
+    if(bar)bar.style.width=n+'%';
+    if(status&&msg)status.textContent=msg;
+  }
+  function showBanner(worker){
+    waitingWorker=worker||reg?.waiting||null;
+    if(banner)banner.hidden=false;
+    if(bannerText)bannerText.textContent='New Sugar Canvas version available.';
+    if(btn){btn.disabled=false;btn.textContent='Update Now';}
+  }
+  function showUpdating(){
+    updateBusy=true;
+    if(overlay)overlay.hidden=false;
+    if(spinner)spinner.hidden=false;
+    if(success)success.hidden=true;
+    if(title)title.textContent='Updating Sugar Canvas';
+    setProgress(5,'Checking for the latest version…');
+    if(btn){btn.disabled=true;btn.textContent='Updating…';}
+  }
+  async function showComplete(){
+    setProgress(100,'Update installed successfully.');
+    if(spinner)spinner.hidden=true;
+    if(success)success.hidden=false;
+    if(title)title.textContent='Update Complete';
+    if(percent)percent.textContent='100%';
+    if(banner)banner.hidden=true;
+    await new Promise(r=>setTimeout(r,1300));
+    if(overlay)overlay.hidden=true;
+    location.reload();
+  }
+  async function waitForInstalled(worker){
+    if(!worker)return null;
+    if(worker.state==='installed')return worker;
+    return await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>reject(new Error('Update timed out.')),20000);
+      const onState=()=>{
+        if(worker.state==='installed'){
+          clearTimeout(timeout);worker.removeEventListener('statechange',onState);resolve(worker);
+        }else if(worker.state==='redundant'){
+          clearTimeout(timeout);worker.removeEventListener('statechange',onState);reject(new Error('Update could not be installed.'));
+        }
+      };
+      worker.addEventListener('statechange',onState);
+    });
+  }
+  async function startUpdate(){
+    if(updateBusy)return;
+    showUpdating();
+    try{
+      setProgress(15,'Checking GitHub Pages…');
+      await reg.update();
+      let worker=reg.waiting||reg.installing;
+      if(!worker){
+        setProgress(30,'Looking for update files…');
+        worker=await new Promise(resolve=>{
+          const timeout=setTimeout(()=>resolve(reg.waiting||reg.installing||null),5000);
+          const onFound=()=>{
+            clearTimeout(timeout);reg.removeEventListener('updatefound',onFound);
+            resolve(reg.installing||reg.waiting||null);
+          };
+          reg.addEventListener('updatefound',onFound);
+        });
+      }
+      if(worker){
+        setProgress(45,'Downloading update…');
+        worker=await waitForInstalled(worker);
+        setProgress(75,'Installing update…');
+        waitingWorker=worker;
+        worker.postMessage({type:'SKIP_WAITING'});
+      }else{
+        const r=await fetch('version.json?ts='+Date.now(),{cache:'no-store'});
+        const v=r.ok?await r.json():{};
+        if(String(v.version||'')===APP_VERSION){
+          setProgress(90,'Already on the latest version…');
+          await showComplete();
+        }else{
+          throw new Error('The new version is not ready yet. Try again in a few seconds.');
+        }
+      }
+    }catch(err){
+      if(overlay)overlay.hidden=true;
+      updateBusy=false;
+      if(btn){btn.disabled=false;btn.textContent='Update Now';}
+      if(bannerText)bannerText.textContent='Update failed — tap Update Now to retry.';
+      alert('Could not update Sugar Canvas: '+err.message);
+    }
+  }
   try{
-    const reg=await navigator.serviceWorker.register('sw.js');
-    const banner=document.getElementById('updateBanner'),btn=document.getElementById('updateNowBtn');
-    let waitingWorker=null;
-    const show=worker=>{waitingWorker=worker||reg.waiting;banner.hidden=false};
-    if(reg.waiting)show(reg.waiting);
+    reg=await navigator.serviceWorker.register('sw.js');
+    if(reg.waiting)showBanner(reg.waiting);
     reg.addEventListener('updatefound',()=>{
       const w=reg.installing;if(!w)return;
-      w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)show(w)})
+      w.addEventListener('statechange',()=>{
+        if(w.state==='installed'&&navigator.serviceWorker.controller&&!updateBusy)showBanner(w)
+      });
     });
-    navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload());
-    btn.onclick=()=>{const w=waitingWorker||reg.waiting;if(w)w.postMessage({type:'SKIP_WAITING'});else location.reload()};
+    navigator.serviceWorker.addEventListener('controllerchange',async()=>{
+      if(updateBusy){
+        setProgress(92,'Activating the new version…');
+        await showComplete();
+      }
+    });
+    if(btn)btn.onclick=startUpdate;
     async function check(){
+      if(updateBusy)return;
       try{
         await reg.update();
         const r=await fetch('version.json?ts='+Date.now(),{cache:'no-store'});
-        if(r.ok){const v=await r.json();if(String(v.version||'')!==APP_VERSION)show(reg.waiting)}
+        if(r.ok){
+          const v=await r.json();
+          if(String(v.version||'')!==APP_VERSION)showBanner(reg.waiting||reg.installing);
+          else if(!reg.waiting&&banner)banner.hidden=true;
+        }
       }catch(e){}
     }
     check();setInterval(check,60000);
