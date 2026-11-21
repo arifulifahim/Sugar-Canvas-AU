@@ -6,15 +6,15 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',facebook_url:'https://www.facebook.com/share/1E2qUGaMEP/',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='24.0.0';
-let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',facebook_url:'https://www.facebook.com/share/1E2qUGaMEP/',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='25.0.0';
+let S=load();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function decodeB64urlJson(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0)));return JSON.parse(new TextDecoder().decode(bytes))}
 async function hmacHex(secret,msg){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(msg));return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;
+function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};S.recipes=p.recipes||[];S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;S.premium_donut_menu=p.premium_donut_menu||S.premium_donut_menu||{};
   const changedCustomers=new Set(Object.keys(S.changes.customers||{}));const changedOrders=new Set(Object.keys(S.changes.orders||{}));
   const byCid=new Map(S.customers.map(c=>[c.phone_sync_id||c.id,c]));(p.customers||[]).forEach(c=>{const id=c.phone_sync_id||c.id;if(clearChanges||!changedCustomers.has(id))byCid.set(id,c)});S.customers=[...byCid.values()];
   const byOid=new Map(S.orders.map(o=>[o.phone_sync_id||o.id||o.order_no,o]));(p.orders||[]).forEach(o=>{const id=o.phone_sync_id||o.id||o.order_no;if(clearChanges||!changedOrders.has(id))byOid.set(id,o)});S.orders=[...byOid.values()];
@@ -32,7 +32,7 @@ function markOrder(o){
 function markPurchase(p){S.changes.purchases[p.phone_sync_id]=p}
 function orderKey(o){return String(o?.phone_sync_id||o?.id||o?.order_no||'')}
 function findOrder(id){return S.orders.find(o=>orderKey(o)===String(id||''))}
-function isDonutOrder(o){return /donut|bomboloni|ring/i.test(String(o?.item||'')) && !String(o?.recipe||'').trim()}
+function isDonutOrder(o){return String(o?.product_type||'').toLowerCase()==='donut'||(/donut|bomboloni|ring/i.test(String(o?.item||'')) && !String(o?.recipe||'').trim())}
 function setDeliveryFields(prefix,needed,charge){
   const sel=document.getElementById(prefix+'DeliveryNeeded');
   const input=document.getElementById(prefix+'DeliveryCharge');
@@ -390,15 +390,49 @@ function saveCake(status){
 }
 document.getElementById('saveCakeQuote').onclick=()=>saveCake('Quotation');document.getElementById('confirmCakeOrder').onclick=()=>saveCake('Confirmed');
 document.getElementById('cancelCakeEdit').onclick=()=>{clearEditMode();S.cakeDraft={addons:[],customAddons:[],profitPct:80};save();go('orders')};
+function donutCustomTotal(){return (S.donutDraft?.customItems||[]).reduce((sum,x)=>sum+Math.max(0,Number(x.amount||0)),0)}
+function renderDonutCustomItems(){
+  const box=document.getElementById('donutCustomItems');if(!box)return;
+  const rows=S.donutDraft?.customItems||[];box.innerHTML='';
+  if(!rows.length){box.innerHTML='<div class="small">No custom items added.</div>';return}
+  rows.forEach(x=>{
+    const row=document.createElement('div');row.className='selected-addon-row';
+    row.innerHTML=`<div><b>${escapeHtml(x.description||'Custom item')}</b><div class="small">Qty ${Number(x.quantity||1)}</div></div><div><b>${money(x.amount)}</b> <button class="remove-mini" type="button">×</button></div>`;
+    row.querySelector('button').onclick=()=>{S.donutDraft.customItems=rows.filter(y=>y.id!==x.id);localStorage.setItem(KEY,JSON.stringify(S));renderDonutCustomItems();donutCalc()};
+    box.appendChild(row);
+  });
+}
+function addDonutCustomItem(){
+  const description=prompt('Custom item / extra description\nExample: 12 mini bomboloni, special flavour mix, extra gift box');
+  if(!description)return;
+  const qRaw=prompt('Quantity for this custom line','1');if(qRaw===null)return;
+  const quantity=Math.max(1,Number(qRaw||1));if(!Number.isFinite(quantity)){alert('Enter a valid quantity.');return}
+  const aRaw=prompt('Customer price to ADD for this line (total $)\nExample: 45.00');if(aRaw===null)return;
+  const amount=Number(String(aRaw).replace('$','').replace(',','').trim());
+  if(!Number.isFinite(amount)||amount<0){alert('Enter a valid amount.');return}
+  S.donutDraft.customItems.push({id:uid(),description:description.trim(),quantity,amount:Number(amount.toFixed(2))});
+  localStorage.setItem(KEY,JSON.stringify(S));renderDonutCustomItems();donutCalc();
+}
+function renderPremiumDonutMenu(){
+  const box=document.getElementById('premiumDonutMenu');if(!box)return;
+  const data=S.premium_donut_menu||{};
+  const hasData=(Array.isArray(data)&&data.length)||(data&&typeof data==='object'&&Object.keys(data).length);
+  box.innerHTML=hasData
+    ? '<div class="small"><b>Premium donut menu synced.</b> Premium quick-select buttons will use the exact uploaded menu data.</div>'
+    : '<div class="small">Premium donut menu: upload your menu to ChatGPT, then it can be added here as quick-select options without changing your prices.</div>';
+}
+document.getElementById('addDonutCustomItem').onclick=addDonutCustomItem;
 function donutCalc(){
   const k=document.getElementById('donutKind').value,q=document.getElementById('donutQty').value;
-  const base=Number(S.donut_menu?.[k]?.[q]||0);
+  const base=k==='custom'?0:Number(S.donut_menu?.[k]?.[q]||0);
+  const custom=donutCustomTotal();
   const delivery=getDeliveryCharge('donut');
-  const total=base+delivery;
+  const total=base+custom+delivery;
   document.getElementById('donutBasePrice').textContent=money(base);
+  const ce=document.getElementById('donutCustomTotal');if(ce)ce.textContent=money(custom);
   document.getElementById('donutDeliveryPrice').textContent=money(delivery);
   document.getElementById('donutPrice').textContent=money(total);
-  return {base,delivery,total};
+  return {base,custom,delivery,total};
 }
 ['donutKind','donutQty','donutDeliveryCharge'].forEach(id=>document.getElementById(id).addEventListener('input',donutCalc));
 document.getElementById('donutDeliveryNeeded').addEventListener('change',()=>{updateDeliveryVisibility('donut');donutCalc()});
@@ -406,7 +440,9 @@ function saveDonut(status){
   const customer=document.getElementById('donutCustomer').value;
   if(!customer){alert('Choose customer.');return}
   const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value);
-  const calc=donutCalc(),names={bomboloni:'Bomboloni Assorted',ring_glazed:'Original Glazed Ring Donuts',ring_assorted:'Ring Donut Assorted'};
+  const calc=donutCalc(),names={bomboloni:'Bomboloni Assorted',ring_glazed:'Original Glazed Ring Donuts',ring_assorted:'Ring Donut Assorted',custom:'Custom Donut Order'};
+  const customItems=[...(S.donutDraft?.customItems||[])];
+  if(kind==='custom'&&!customItems.length){alert('Add at least one Custom Item / Extra for a custom donut quotation.');return}
   const dep=Number(document.getElementById('donutDeposit').value||0);
   const minConfirm=minimumConfirmDeposit(calc.total,0);
   if(status==='Confirmed' && dep+0.001<minConfirm){
@@ -415,26 +451,34 @@ function saveDonut(status){
   }
   const existing=S.editingOrderId?findOrder(S.editingOrderId):null;
   const syncId=existing?orderKey(existing):uid();
+  const baseItems=calc.base>0?[{id:uid(),item:`${names[kind]} - ${q} pcs`,item_type:'Donut Menu Item',quantity:q,price:calc.base,base_cost:0,cost:0}]:[];
+  const customLines=customItems.map(x=>({id:x.id||uid(),item:x.description,item_type:'Custom Item',quantity:Number(x.quantity||1),price:Number(x.amount||0),base_cost:0,cost:0,manual_customer_price:true}));
+  const customSummary=customItems.map(x=>x.description).filter(Boolean).slice(0,2).join(' + ');
+  const itemSummary=kind==='custom'?('Custom Donut Order'+(customSummary?' - '+customSummary:'')):`${names[kind]} - ${q} pcs`;
+  const totalQty=kind==='custom'?customItems.reduce((s,x)=>s+Number(x.quantity||1),0):q;
   const o={
-    ...(existing||{}),phone_sync_id:syncId,customer,item:`${names[kind]} - ${q} pcs`,recipe:'',quantity:q,target_weight_g:0,
+    ...(existing||{}),phone_sync_id:syncId,customer,item:itemSummary,recipe:'',quantity:totalQty,target_weight_g:0,product_type:'Donut',
     date:document.getElementById('donutDate').value||todayIso(),base_cost:0,cost:0,
     packaging_type:'Donut box',packaging_cost:0,customisation:0,
     delivery_needed:document.getElementById('donutDeliveryNeeded').value==='yes',
     delivery_charge:calc.delivery,price:calc.total,deposit:dep,status,minimum_deposit_required:minConfirm,
     workflow_status:status==='Confirmed'?'Confirmed':(existing?.workflow_status||''),
     note:document.getElementById('donutFlavours').value,donut_kind:kind,donut_menu_price:calc.base,
-    created:existing?.created||todayIso(),modified_at:nowIso(),items:[]
+    custom_customer_items:customItems,
+    created:existing?.created||todayIso(),modified_at:nowIso(),items:[...baseItems,...customLines]
   };
   if(existing){
     const idx=S.orders.findIndex(x=>orderKey(x)===syncId);
     if(idx>=0)S.orders[idx]=o;
   }else S.orders.unshift(o);
-  markOrder(o);setDeliveryFields('donut',false,0);clearEditMode();save();
+  markOrder(o);
+  S.donutDraft={customItems:[]};
+  setDeliveryFields('donut',false,0);clearEditMode();localStorage.setItem(KEY,JSON.stringify(S));renderDonutCustomItems();save();
   alert(existing?'Order updated on phone.':(status==='Quotation'?'Donut quote saved.':'Donut order confirmed.'));
   go('orders');
 }
 document.getElementById('saveDonutQuote').onclick=()=>saveDonut('Quotation');document.getElementById('confirmDonutOrder').onclick=()=>saveDonut('Confirmed');
-document.getElementById('cancelDonutEdit').onclick=()=>{clearEditMode();save();go('orders')};
+document.getElementById('cancelDonutEdit').onclick=()=>{S.donutDraft={customItems:[]};clearEditMode();save();go('orders')};
 function renderOrders(){
   const list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch').value||'').toLowerCase();
@@ -522,7 +566,7 @@ function canvasRoundedRect(ctx,x,y,w,h,r){
 }
 function loadReceiptLogo(){
   return new Promise(resolve=>{
-    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=24';
+    const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src='sugar-canvas-logo.png?v=25';
   });
 }
 function loadFacebookReviewQr(){
@@ -701,11 +745,22 @@ async function buildQuoteCanvas(o){
 
   x.textAlign='left';x.fillStyle='#38232d';x.font='bold 18px Arial';x.fillText('Description',left,y);
   x.textAlign='center';x.fillText('Qty',520,y);x.textAlign='right';x.fillText('Amount',right,y);y+=30;
-  let itemName=titleItem(o.item||o.recipe||'Order');
-  if(Number(o.target_weight_g||0)>0)itemName+=' • '+Math.round(Number(o.target_weight_g))+' g';
-  x.textAlign='left';x.font='bold 19px Arial';x.fillText(itemName.slice(0,48),left,y);
-  x.textAlign='center';x.fillText(String(Math.max(1,Number(o.quantity||1))),520,y);
-  x.textAlign='right';x.fillText(money(total),right,y);y+=38;
+  const quotedLines=Array.isArray(o.items)?o.items.filter(it=>Number(it.price||0)>0):[];
+  if(quotedLines.length){
+    quotedLines.forEach(it=>{
+      x.textAlign='left';x.font='bold 17px Arial';x.fillStyle='#38232d';x.fillText(titleItem(it.item||'Item').slice(0,46),left,y);
+      x.textAlign='center';x.fillText(String(Math.max(1,Number(it.quantity||1))),520,y);
+      x.textAlign='right';x.fillText(money(it.price||0),right,y);y+=30;
+    });
+    const delivery=Number(o.delivery_charge||0);
+    if(delivery>0){x.textAlign='left';x.font='17px Arial';x.fillText('Delivery',left,y);x.textAlign='center';x.fillText('1',520,y);x.textAlign='right';x.fillText(money(delivery),right,y);y+=30}
+  }else{
+    let itemName=titleItem(o.item||o.recipe||'Order');
+    if(Number(o.target_weight_g||0)>0)itemName+=' • '+Math.round(Number(o.target_weight_g))+' g';
+    x.textAlign='left';x.font='bold 19px Arial';x.fillText(itemName.slice(0,48),left,y);
+    x.textAlign='center';x.fillText(String(Math.max(1,Number(o.quantity||1))),520,y);
+    x.textAlign='right';x.fillText(money(total),right,y);y+=38;
+  }
 
   if(o.note){x.textAlign='left';x.fillStyle='#6f5963';x.font='15px Arial';x.fillText('Notes: '+String(o.note).slice(0,72),left,y);y+=32}
   x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=38;
@@ -866,11 +921,15 @@ function startEditOrder(id){
     document.getElementById('donutFlavours').value=o.note||'';
     document.getElementById('donutDate').value=o.date||todayIso();
     document.getElementById('donutDeposit').value=Number(o.deposit||0);
+    S.donutDraft={customItems:(o.custom_customer_items||[]).map(x=>({...x}))};
+    if(!S.donutDraft.customItems.length){
+      S.donutDraft.customItems=(o.items||[]).filter(it=>String(it.item_type||'').toLowerCase()==='custom item').map(it=>({id:it.id||uid(),description:it.item||'Custom item',quantity:Number(it.quantity||1),amount:Number(it.price||0)}));
+    }
     setDeliveryFields('donut',!!o.delivery_needed,Number(o.delivery_charge||0));
     document.getElementById('cancelDonutEdit').hidden=false;
     document.getElementById('saveDonutQuote').textContent='Update as Quote';
     document.getElementById('confirmDonutOrder').textContent='Update Order';
-    donutCalc();go('donut');return;
+    renderDonutCustomItems();donutCalc();go('donut');return;
   }
   document.getElementById('cakeCustomer').value=o.customer||'';
   const recipe=S.recipes.find(r=>String(r.id)===String(o.recipe_id||'')||String(r.name).toLowerCase()===String(o.recipe||o.item||'').toLowerCase());
@@ -1104,7 +1163,7 @@ document.getElementById('deletePurchaseBtn').onclick=()=>{
 function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
 function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
   document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Business ABN synced:</b> ${S.business?.abn||'Not received from laptop yet'}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
-function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
+function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();renderDonutCustomItems();renderPremiumDonutMenu();donutCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
 document.getElementById('importLaptop').addEventListener('change',async e=>{
   const f=e.target.files[0];
   if(!f)return;
