@@ -455,7 +455,35 @@ function openOrderDetail(id){
   }
   html+=`<div class="card detail-card"><div class="detail-section-title">Cost & Price</div>${detailRow('Full Cost',money(o.cost||o.base_cost||0))}${Number(o.addon_cost||0)>0?detailRow('Add-On Cost',money(o.addon_cost)):''}${Number(o.packaging_cost||0)>0?detailRow('Packaging Cost',money(o.packaging_cost)):''}${Number(o.customisation||0)>0?detailRow('Customization Cost',money(o.customisation)):''}${Number(o.profit_percent||0)>0?detailRow('Profit %',`${Number(o.profit_percent).toFixed(0)}%`):''}${detailRow('Delivery',o.delivery_needed?`Yes • ${money(o.delivery_charge)}`:'Pickup')}${detailRow('Customer Price',money(o.price))}${detailRow('Deposit',money(o.deposit))}${detailRow('Balance',money(remaining))}</div>`;
   if(o.note)html+=`<div class="card detail-card"><div class="detail-section-title">Notes</div><div>${o.note}</div></div>`;
-  box.innerHTML=html;go('orderDetail');
+  box.innerHTML=html;
+  const completeBtn=document.getElementById('completeOrderBtn');
+  const finalStatus=String(o.workflow_status||o.status||'').toLowerCase();
+  const completed=['completed','finalised','cancelled'].includes(finalStatus);
+  if(completeBtn){
+    completeBtn.hidden=finalStatus==='cancelled';
+    completeBtn.disabled=completed;
+    completeBtn.classList.toggle('completed',completed);
+    completeBtn.textContent=finalStatus==='cancelled'?'Order Cancelled':(completed?'✓ Order Completed':'✓ Complete Order');
+  }
+  go('orderDetail');
+}
+function completeSelectedOrder(){
+  const o=findOrder(S.selectedOrderId);if(!o)return;
+  const current=String(o.workflow_status||o.status||'').toLowerCase();
+  if(['completed','finalised','cancelled'].includes(current))return;
+  const remaining=Math.max(0,Number(o.price||0)-Number(o.deposit||0));
+  let message='Mark this order as Completed?';
+  if(remaining>0.005)message+='\n\nOutstanding balance: '+money(remaining)+'\nThe balance will remain recorded.';
+  message+='\n\nThe completed status will sync to the laptop on your next Sync Now.';
+  if(!confirm(message))return;
+  o.workflow_status='Completed';
+  o.status='Completed';
+  o.completed_at=nowIso();
+  o.modified_at=nowIso();
+  markOrder(o);
+  S.selectedOrderId=orderKey(o);
+  save();
+  openOrderDetail(S.selectedOrderId);
 }
 function startEditOrder(id){
   const o=findOrder(id);if(!o)return;
@@ -510,6 +538,7 @@ function deleteSelectedOrder(){
   S.changes.orders[id]={phone_sync_id:id,_deleted:true,modified_at:nowIso()};
   S.selectedOrderId='';save();go('orders');
 }
+document.getElementById('completeOrderBtn').onclick=completeSelectedOrder;
 document.getElementById('editOrderBtn').onclick=()=>startEditOrder(S.selectedOrderId);
 document.getElementById('deleteOrderBtn').onclick=deleteSelectedOrder;
 document.getElementById('orderSearch').oninput=renderOrders;document.getElementById('orderFilter').onchange=renderOrders;
