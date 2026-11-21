@@ -91,3 +91,6 @@ details.card summary{cursor:pointer;color:var(--pink-dark)}
 .update-progress-bar{height:100%;width:0;background:var(--pink);border-radius:999px;transition:width .3s ease}
 
 .update-overlay[hidden],.update-banner[hidden],.update-success[hidden]{display:none!important}
+
+.complete-order-btn{background:#159a68!important;color:white!important;border:0!important;font-size:17px;box-shadow:0 5px 16px rgba(21,154,104,.22)}
+.complete-order-btn.completed{background:#e8f7f0!important;color:#11734f!important;border:1px solid #b7e6d2!important;box-shadow:none}
