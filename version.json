@@ -1,4 +1,4 @@
 {
-  "version": "29.0.0",
-  "name": "Cake weight defaults to each recipe's saved base weight"
+  "version": "30.0.0",
+  "name": "Recipe ingredients sync reliably from laptop"
 }
