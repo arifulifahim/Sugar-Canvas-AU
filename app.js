@@ -6,8 +6,8 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38},ring_glazed:{4:16,6:20,8:27},ring_assorted:{4:19,6:26,8:34}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='30.0.0';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='31.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -487,18 +487,63 @@ function addDonutCustomItem(){
   S.donutDraft.customItems.push({id:uid(),description:description.trim(),quantity,amount:Number(amount.toFixed(2))});
   localStorage.setItem(KEY,JSON.stringify(S));renderDonutCustomItems();donutCalc();
 }
+function premiumSinglePrice(kind){
+  const key=String(kind||'').replace(/^premium_/,'');
+  return Number(S.donut_menu?.premium_single?.[key]||0);
+}
+function donutMenuNames(){
+  return {
+    bomboloni:'Bomboloni Assorted',
+    ring_glazed:'Original Glazed Ring Donuts',
+    ring_cinnamon:'Cinnamon Ring Donuts',
+    ring_assorted:'Assorted Topped Ring Donuts',
+    premium_assorted:'Premium Assorted Box',
+    premium_mango_passion:'Mango-Passion Fruit Premium Donut',
+    premium_coffee_caramel:'Coffee Caramel Premium Donut',
+    premium_strawberry:'Strawberry Premium Donut',
+    premium_blueberry:'Blueberry Premium Donut',
+    custom:'Custom Donut Order'
+  };
+}
+function donutAllowedQty(kind){
+  if(kind==='bomboloni'||kind==='ring_assorted')return [4,6,8,10];
+  if(kind==='ring_glazed'||kind==='ring_cinnamon')return [4,6,8];
+  if(kind==='premium_assorted')return [6,8,12];
+  if(/^premium_(mango_passion|coffee_caramel|strawberry|blueberry)$/.test(kind))return [1,2,3,4,6,8,10,12,24];
+  if(kind==='custom')return [1];
+  return [4,6,8];
+}
+function syncDonutQtyOptions(preferred){
+  const sel=document.getElementById('donutQty');if(!sel)return;
+  const kind=document.getElementById('donutKind')?.value||'bomboloni';
+  const allowed=donutAllowedQty(kind);
+  const want=Number(preferred||sel.value||allowed[0]);
+  sel.innerHTML='';
+  allowed.forEach(q=>{const o=document.createElement('option');o.value=String(q);o.textContent=String(q);sel.appendChild(o)});
+  sel.value=String(allowed.includes(want)?want:allowed[0]);
+}
+function donutMenuBasePrice(kind,qty){
+  if(/^premium_(mango_passion|coffee_caramel|strawberry|blueberry)$/.test(kind)){
+    return premiumSinglePrice(kind)*Number(qty||0);
+  }
+  return Number(S.donut_menu?.[kind]?.[String(qty)]??S.donut_menu?.[kind]?.[qty]??0);
+}
 function renderPremiumDonutMenu(){
   const box=document.getElementById('premiumDonutMenu');if(!box)return;
-  const data=S.premium_donut_menu||{};
-  const hasData=(Array.isArray(data)&&data.length)||(data&&typeof data==='object'&&Object.keys(data).length);
-  box.innerHTML=hasData
-    ? '<div class="small"><b>Premium donut menu synced.</b> Premium quick-select buttons will use the exact uploaded menu data.</div>'
-    : '<div class="small">Premium donut menu: upload your menu to ChatGPT, then it can be added here as quick-select options without changing your prices.</div>';
+  const p=S.donut_menu||{};
+  const single=p.premium_single||{};
+  const assorted=p.premium_assorted||{};
+  box.innerHTML='<div class="small"><b>Premium pricing</b><br>'+
+    'Mango-Passion '+money(single.mango_passion||6.5)+' each • '+
+    'Coffee Caramel '+money(single.coffee_caramel||6.5)+' each • '+
+    'Strawberry '+money(single.strawberry||6)+' each • '+
+    'Blueberry '+money(single.blueberry||6)+' each<br>'+
+    'Assorted: 6 '+money(assorted[6]||37)+' • 8 '+money(assorted[8]||48)+' • 12 '+money(assorted[12]||70)+'</div>';
 }
 document.getElementById('addDonutCustomItem').onclick=addDonutCustomItem;
 function donutCalc(){
-  const k=document.getElementById('donutKind').value,q=document.getElementById('donutQty').value;
-  const base=k==='custom'?0:Number(S.donut_menu?.[k]?.[q]||0);
+  const k=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value||0);
+  const base=k==='custom'?0:donutMenuBasePrice(k,q);
   const custom=donutCustomTotal();
   const delivery=getDeliveryCharge('donut');
   const total=base+custom+delivery;
@@ -508,13 +553,15 @@ function donutCalc(){
   document.getElementById('donutPrice').textContent=money(total);
   return {base,custom,delivery,total};
 }
-['donutKind','donutQty','donutDeliveryCharge'].forEach(id=>document.getElementById(id).addEventListener('input',donutCalc));
+document.getElementById('donutKind').addEventListener('change',()=>{syncDonutQtyOptions();donutCalc()});
+document.getElementById('donutQty').addEventListener('change',donutCalc);
+document.getElementById('donutDeliveryCharge').addEventListener('input',donutCalc);
 document.getElementById('donutDeliveryNeeded').addEventListener('change',()=>{updateDeliveryVisibility('donut');donutCalc()});
 function saveDonut(status){
   const customer=document.getElementById('donutCustomer').value;
   if(!customer){alert('Choose customer.');return}
-  const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value);
-  const calc=donutCalc(),names={bomboloni:'Bomboloni Assorted',ring_glazed:'Original Glazed Ring Donuts',ring_assorted:'Ring Donut Assorted',custom:'Custom Donut Order'};
+  const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value||0);
+  const calc=donutCalc(),names=donutMenuNames();
   const customItems=[...(S.donutDraft?.customItems||[])];
   if(kind==='custom'&&!customItems.length){alert('Add at least one Custom Item / Extra for a custom donut quotation.');return}
   const dep=Number(document.getElementById('donutDeposit').value||0);
@@ -531,7 +578,7 @@ function saveDonut(status){
   const customLines=customItems.map(x=>({id:x.id||uid(),item:x.description,item_type:'Custom Item',quantity:Number(x.quantity||1),price:Number(x.amount||0),base_cost:0,cost:0,manual_customer_price:true}));
   const customSummary=customItems.map(x=>x.description).filter(Boolean).slice(0,2).join(' + ');
   const itemSummary=kind==='custom'?('Custom Donut Order'+(customSummary?' - '+customSummary:'')):`${names[kind]} - ${q} pcs`;
-  const totalQty=kind==='custom'?customItems.reduce((s,x)=>s+Number(x.quantity||1),0):q;
+  const totalQty=kind==='custom'?customItems.reduce((sum,x)=>sum+Number(x.quantity||1),0):q;
   const o={
     ...(existing||{}),phone_sync_id:syncId,customer,item:itemSummary,recipe:'',quantity:totalQty,target_weight_g:0,product_type:'Donut',
     date:document.getElementById('donutDate').value||todayIso(),base_cost:0,cost:0,
@@ -1070,7 +1117,8 @@ function startEditOrder(id){
     const kind=o.donut_kind||(/bomboloni/i.test(o.item||'')?'bomboloni':(/glazed/i.test(o.item||'')?'ring_glazed':'ring_assorted'));
     document.getElementById('donutCustomer').value=o.customer||'';
     document.getElementById('donutKind').value=kind;
-    document.getElementById('donutQty').value=String(Math.round(Number(o.quantity||4)));
+    syncDonutQtyOptions(Math.round(Number(o.quantity||4)));
+    document.getElementById('donutQty').value=String(Math.round(Number(o.quantity||donutAllowedQty(kind)[0])));
     document.getElementById('donutFlavours').value=o.note||'';
     document.getElementById('donutDate').value=o.date||todayIso();
     document.getElementById('donutDeposit').value=Number(o.deposit||0);
@@ -1384,6 +1432,7 @@ document.getElementById('exportLaptop').onclick=()=>{
 };
 
 handleLanReturn();
+syncDonutQtyOptions();
 document.getElementById('cakeDate').value=todayIso();
 document.getElementById('donutDate').value=todayIso();document.getElementById('brownieDate').value=todayIso();
 prune();
