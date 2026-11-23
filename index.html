@@ -136,13 +136,24 @@
     <button class="secondary" id="donutAddCustomer">+ Add Customer</button>
     <label>Product
       <select id="donutKind">
-        <option value="bomboloni">Bomboloni Assorted</option>
-        <option value="ring_glazed">Original Glazed Ring Donuts</option>
-        <option value="ring_assorted">Ring Donut Assorted</option><option value="custom">Custom / Other Donut Order</option>
+        <optgroup label="Classic Donuts">
+          <option value="bomboloni">Bomboloni Assorted</option>
+          <option value="ring_glazed">Original Glazed Ring Donuts</option>
+          <option value="ring_cinnamon">Cinnamon Ring Donuts</option>
+          <option value="ring_assorted">Assorted Topped Ring Donuts</option>
+        </optgroup>
+        <optgroup label="Premium Donuts">
+          <option value="premium_assorted">Premium Assorted Box</option>
+          <option value="premium_mango_passion">Mango-Passion Fruit Premium Donut</option>
+          <option value="premium_coffee_caramel">Coffee Caramel Premium Donut</option>
+          <option value="premium_strawberry">Strawberry Premium Donut</option>
+          <option value="premium_blueberry">Blueberry Premium Donut</option>
+        </optgroup>
+        <option value="custom">Custom / Other Donut Order</option>
       </select>
     </label>
     <label>Pieces
-      <select id="donutQty"><option>4</option><option>6</option><option>8</option></select>
+      <select id="donutQty"></select>
     </label>
     <div class="subsection">
       <div class="subsection-head"><div><b>Premium Donut Menu</b><div class="small">Quick-select premium options will appear here after your premium menu is uploaded and synced.</div></div></div>
