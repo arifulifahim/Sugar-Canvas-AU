@@ -1,4 +1,4 @@
 {
-  "version": "35.0.0",
-  "name": "Quotation uses order number; invoice stays separate"
+  "version": "36.0.0",
+  "name": "Business customer details stay attached to quotations and orders"
 }
