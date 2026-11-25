@@ -1,4 +1,4 @@
 {
-  "version": "34.0.0",
-  "name": "Quotation numbering, business details and confirmation workflow"
+  "version": "35.0.0",
+  "name": "Quotation uses order number; invoice stays separate"
 }
