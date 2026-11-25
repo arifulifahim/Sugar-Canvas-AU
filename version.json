@@ -1,4 +1,4 @@
 {
-  "version": "38.0.0",
-  "name": "Edit customers and refresh customer details on existing invoices"
+  "version": "39.0.0",
+  "name": "Order details show current customer record; invoice refresh stays controlled"
 }
