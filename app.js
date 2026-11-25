@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='35.0.0';
+const APP_VERSION='36.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -142,8 +142,46 @@ function go(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove
 document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b)go(b.dataset.go)})
 function customerOptions(sel){
   const old=sel.value; sel.innerHTML='<option value="">Select customer</option>';
-  [...S.customers].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(c=>{const o=document.createElement('option');o.value=c.name;o.textContent=c.name;sel.appendChild(o)});
+  [...S.customers].sort((a,b)=>String(a.business_name||a.name||'').localeCompare(String(b.business_name||b.name||''))).forEach(c=>{
+    const o=document.createElement('option');
+    o.value=c.name;
+    const isBusiness=String(c.customer_type||'').toLowerCase()==='business'||!!c.business_name||!!c.abn;
+    o.textContent=isBusiness?(c.business_name+(c.contact_person?' — '+c.contact_person:'')):(c.name||'Customer');
+    o.dataset.customerId=String(c.customer_id||'');
+    o.dataset.phoneSyncId=String(c.phone_sync_id||c.id||'');
+    sel.appendChild(o);
+  });
   if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function selectedCustomerFromSelect(selectId){
+  const sel=document.getElementById(selectId);if(!sel)return null;
+  const opt=sel.options[sel.selectedIndex];
+  const cid=String(opt?.dataset?.customerId||'').trim();
+  const psid=String(opt?.dataset?.phoneSyncId||'').trim();
+  if(cid){const c=(S.customers||[]).find(x=>String(x.customer_id||'').trim()===cid);if(c)return c}
+  if(psid){const c=(S.customers||[]).find(x=>String(x.phone_sync_id||x.id||'').trim()===psid);if(c)return c}
+  const name=String(sel.value||'').trim().toLowerCase();
+  const matches=(S.customers||[]).filter(c=>{
+    return [c.name,c.contact_person,c.business_name].some(v=>String(v||'').trim().toLowerCase()===name);
+  });
+  return matches.find(c=>String(c.customer_type||'').toLowerCase()==='business'||c.business_name||c.abn)||matches[0]||null;
+}
+function customerSnapshot(c){
+  if(!c)return {};
+  return {
+    customer_id:String(c.customer_id||''),
+    customer_phone_sync_id:String(c.phone_sync_id||c.id||''),
+    customer_business_name:String(c.business_name||''),
+    customer_abn:String(c.abn||''),
+    customer_contact_person:String(c.contact_person||''),
+    customer_email:String(c.email||''),
+    customer_phone:String(c.phone||''),
+    customer_address:String(c.address||''),
+    customer_billing_address:String(c.billing_address||''),
+    customer_delivery_address:String(c.delivery_address||''),
+    customer_po_reference:String(c.po_reference||''),
+    customer_type:String(c.customer_type||((c.business_name||c.abn)?'Business':'Personal'))
+  };
 }
 function recipeOptions(){
   const sel=document.getElementById('cakeRecipe'),old=sel.value;sel.innerHTML='<option value="">Select recipe</option>';
@@ -489,6 +527,7 @@ document.getElementById('cakeAddCustomer').onclick=()=>openCustomerForm('cake','
 document.getElementById('donutAddCustomer').onclick=()=>openCustomerForm('donut','donutCustomer');
 function saveCake(status){
   const customer=document.getElementById('cakeCustomer').value;
+  const customerRecord=selectedCustomerFromSelect('cakeCustomer');
   const r=S.recipes.find(x=>x.id===document.getElementById('cakeRecipe').value);
   if(!customer||!r){alert('Choose customer and cake.');return}
   const pct=getProfitPct({validate:true});if(pct===null)return;
@@ -517,7 +556,7 @@ function saveCake(status){
   const orderNo=existing?.order_no||nextSequentialRef('order_no','ORD-',1001);
   const quoteNo=orderNo;
   const o={
-    ...(existing||{}),phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?(existing?.quote_created_date||todayIso()):(existing?.quote_created_date||''),confirmed_date:status==='Confirmed'?(existing?.confirmed_date||todayIso()):(existing?.confirmed_date||''),customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,
+    ...(existing||{}),...customerSnapshot(customerRecord),phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?(existing?.quote_created_date||todayIso()):(existing?.quote_created_date||''),confirmed_date:status==='Confirmed'?(existing?.confirmed_date||todayIso()):(existing?.confirmed_date||''),customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,
     date:document.getElementById('cakeDate').value||todayIso(),
     base_cost:calc.cost,cost:calc.cost,
     packaging_type:calc.packaging?.name||'',packaging_raw_cost:calc.rawPack,packaging_cost:calc.pack,
@@ -643,6 +682,7 @@ document.getElementById('donutDeliveryCharge').addEventListener('input',donutCal
 document.getElementById('donutDeliveryNeeded').addEventListener('change',()=>{updateDeliveryVisibility('donut');donutCalc()});
 function saveDonut(status){
   const customer=document.getElementById('donutCustomer').value;
+  const customerRecord=selectedCustomerFromSelect('donutCustomer');
   if(!customer){alert('Choose customer.');return}
   const kind=document.getElementById('donutKind').value,q=Number(document.getElementById('donutQty').value||0);
   const calc=donutCalc(),names=donutMenuNames();
@@ -666,7 +706,7 @@ function saveDonut(status){
   const itemSummary=kind==='custom'?('Custom Donut Order'+(customSummary?' - '+customSummary:'')):`${names[kind]} - ${q} pcs`;
   const totalQty=kind==='custom'?customItems.reduce((sum,x)=>sum+Number(x.quantity||1),0):q;
   const o={
-    ...(existing||{}),phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?(existing?.quote_created_date||todayIso()):(existing?.quote_created_date||''),confirmed_date:status==='Confirmed'?(existing?.confirmed_date||todayIso()):(existing?.confirmed_date||''),customer,item:itemSummary,recipe:'',quantity:totalQty,target_weight_g:0,product_type:'Donut',
+    ...(existing||{}),...customerSnapshot(customerRecord),phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?(existing?.quote_created_date||todayIso()):(existing?.quote_created_date||''),confirmed_date:status==='Confirmed'?(existing?.confirmed_date||todayIso()):(existing?.confirmed_date||''),customer,item:itemSummary,recipe:'',quantity:totalQty,target_weight_g:0,product_type:'Donut',
     date:document.getElementById('donutDate').value||todayIso(),base_cost:0,cost:0,
     packaging_type:'Donut box',packaging_cost:0,customisation:0,
     delivery_needed:document.getElementById('donutDeliveryNeeded').value==='yes',
@@ -693,7 +733,7 @@ document.getElementById('brownieDeliveryCharge').addEventListener('input',browni
 document.getElementById('addBrownieCustomItem').onclick=addBrownieCustomItem;
 document.getElementById('saveBrownieQuote').onclick=function(){saveBrownie('Quotation')};
 document.getElementById('confirmBrownieOrder').onclick=function(){saveBrownie('Confirmed')};
-document.getElementById('brownieAddCustomer').onclick=function(){var c=addCustomer();if(c)document.getElementById('brownieCustomer').value=c.name};
+document.getElementById('brownieAddCustomer').onclick=()=>openCustomerForm('brownie','brownieCustomer');
 
 document.getElementById('cancelDonutEdit').onclick=()=>{S.donutDraft={customItems:[]};clearEditMode();save();go('orders')};
 
@@ -730,7 +770,7 @@ function brownieCalc(){
   return {kind:kind,base:base,extras:extras,delivery:delivery,total:total};
 }
 function saveBrownie(status){
-  var customer=document.getElementById('brownieCustomer').value;if(!customer){alert("Choose customer.");return}
+  var customer=document.getElementById('brownieCustomer').value;var customerRecord=selectedCustomerFromSelect('brownieCustomer');if(!customer){alert("Choose customer.");return}
   var calc=brownieCalc();var menu=BROWNIE_MENU[calc.kind]||BROWNIE_MENU.custom;var pieces=Number(document.getElementById('browniePieces').value||4);var dep=Number(document.getElementById('brownieDeposit').value||0);
   var existing=S.editingOrderId?findOrder(S.editingOrderId):null;var internalCost=Number((existing&&existing.cost)||0);
   if(!(internalCost>0)){
@@ -745,7 +785,7 @@ function saveBrownie(status){
   var quoteNo=orderNo;
   var customItems=((S.brownieDraft&&S.brownieDraft.customItems)||[]).map(function(x){return {id:x.id,item:x.description,item_type:'Custom',quantity:x.quantity,price:x.amount,base_cost:0}});
   var mainLine={item:menu.name,item_type:'Brownie',quantity:1,price:calc.base,base_cost:internalCost};
-  var o=Object.assign({},existing||{},{phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?((existing&&existing.quote_created_date)||todayIso()):((existing&&existing.quote_created_date)||''),confirmed_date:status==='Confirmed'?((existing&&existing.confirmed_date)||todayIso()):((existing&&existing.confirmed_date)||''),customer:customer,product_type:'brownie',item:menu.name,recipe:'',quantity:1,target_weight_g:0,brownie_kind:calc.kind,brownie_piece_count:pieces,date:document.getElementById('brownieDate').value||todayIso(),base_cost:internalCost,cost:internalCost,customisation:0,delivery_needed:document.getElementById('brownieDeliveryNeeded').value==='yes',delivery_charge:calc.delivery,price:finalTotal,deposit:dep,status:status,minimum_deposit_required:minConfirm,referral_discount_type:referral.type,referral_discount_percent:referral.type?5:0,referral_discount_amount:referral.amount,referral_code_used:referral.referral_code,workflow_status:status==='Confirmed'?'Confirmed':((existing&&existing.workflow_status)||''),note:document.getElementById('brownieNote').value,created:(existing&&existing.created)||todayIso(),modified_at:nowIso(),items:[mainLine].concat(customItems)});
+  var o=Object.assign({},existing||{},customerSnapshot(customerRecord),{phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?((existing&&existing.quote_created_date)||todayIso()):((existing&&existing.quote_created_date)||''),confirmed_date:status==='Confirmed'?((existing&&existing.confirmed_date)||todayIso()):((existing&&existing.confirmed_date)||''),customer:customer,product_type:'brownie',item:menu.name,recipe:'',quantity:1,target_weight_g:0,brownie_kind:calc.kind,brownie_piece_count:pieces,date:document.getElementById('brownieDate').value||todayIso(),base_cost:internalCost,cost:internalCost,customisation:0,delivery_needed:document.getElementById('brownieDeliveryNeeded').value==='yes',delivery_charge:calc.delivery,price:finalTotal,deposit:dep,status:status,minimum_deposit_required:minConfirm,referral_discount_type:referral.type,referral_discount_percent:referral.type?5:0,referral_discount_amount:referral.amount,referral_code_used:referral.referral_code,workflow_status:status==='Confirmed'?'Confirmed':((existing&&existing.workflow_status)||''),note:document.getElementById('brownieNote').value,created:(existing&&existing.created)||todayIso(),modified_at:nowIso(),items:[mainLine].concat(customItems)});
   if(existing){var idx=S.orders.findIndex(function(x){return orderKey(x)===syncId});if(idx>=0)S.orders[idx]=o}else{S.orders.unshift(o)}
   markOrder(o);S.brownieDraft={customItems:[]};setDeliveryFields('brownie',false,0);clearEditMode();save();alert(status==='Quotation'?"Brownie quote saved.":"Brownie order confirmed.");go('orders');
 }
@@ -861,7 +901,32 @@ function confirmQuotationFromDetail(o){
   openOrderDetail(orderKey(o));
 }
 function customerForOrder(o){
-  return (S.customers||[]).find(c=>String(c.name||'').trim().toLowerCase()===String(o.customer||'').trim().toLowerCase())||{};
+  const rows=S.customers||[];
+  const cid=String(o?.customer_id||'').trim();
+  if(cid){const c=rows.find(x=>String(x.customer_id||'').trim()===cid);if(c)return c}
+  const psid=String(o?.customer_phone_sync_id||'').trim();
+  if(psid){const c=rows.find(x=>String(x.phone_sync_id||x.id||'').trim()===psid);if(c)return c}
+  const target=String(o?.customer||'').trim().toLowerCase();
+  const matches=rows.filter(c=>[c.name,c.contact_person,c.business_name].some(v=>String(v||'').trim().toLowerCase()===target));
+  const business=matches.find(c=>String(c.customer_type||'').toLowerCase()==='business'||c.business_name||c.abn);
+  if(business)return business;
+  if(matches[0])return matches[0];
+  if(o&&(o.customer_business_name||o.customer_abn||o.customer_email)){
+    return {
+      customer_type:o.customer_type||'Business',
+      business_name:o.customer_business_name||'',
+      abn:o.customer_abn||'',
+      contact_person:o.customer_contact_person||o.customer||'',
+      name:o.customer_contact_person||o.customer||'',
+      email:o.customer_email||'',
+      phone:o.customer_phone||'',
+      address:o.customer_address||'',
+      billing_address:o.customer_billing_address||'',
+      delivery_address:o.customer_delivery_address||'',
+      po_reference:o.customer_po_reference||''
+    };
+  }
+  return {};
 }
 function receiptRef(o){
   return String(o.invoice_no||o.order_no||o.quote_no||o.phone_sync_id||o.id||'ORDER').trim();
