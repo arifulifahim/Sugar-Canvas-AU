@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='40.0.0';
+const APP_VERSION='41.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -1016,19 +1016,61 @@ function customerForOrder(o){
   }
   return {};
 }
-function refreshInvoiceCustomerDetails(o){
+function openInvoiceCustomerPicker(o){
   if(!o||!o.invoice_no)return;
-  const c=liveCustomerForOrder(o);
-  if(!c){alert('Could not find the linked customer record. Edit the correct customer in Customers first.');return}
-  Object.assign(o,customerSnapshot(c));
-  o.customer=c.name||c.contact_person||c.business_name||o.customer;
-  o.invoice_customer_refreshed_at=nowIso();
-  o.modified_at=nowIso();
-  markOrder(o);
-  localStorage.setItem(KEY,JSON.stringify(S));
-  save();
-  alert('Invoice customer details refreshed from Customers.');
-  openOrderDetail(orderKey(o));
+  const old=document.getElementById('invoiceCustomerPickerOverlay');
+  if(old)old.remove();
+
+  const wrap=document.createElement('div');
+  wrap.id='invoiceCustomerPickerOverlay';
+  wrap.style.cssText='position:fixed;inset:0;z-index:25000;background:rgba(25,15,20,.72);padding:14px;overflow:auto;display:flex;align-items:flex-start;justify-content:center';
+
+  const card=document.createElement('div');
+  card.style.cssText='background:white;border-radius:20px;padding:18px;width:min(430px,100%);margin:40px auto';
+
+  const rows=[...(S.customers||[])].sort((x,y)=>String(x.business_name||x.name||'').localeCompare(String(y.business_name||y.name||'')));
+  const currentId=String(o.customer_id||'').trim();
+
+  const options=rows.map(c=>{
+    const isBusiness=String(c.customer_type||'').toLowerCase()==='business'||!!c.business_name||!!c.abn;
+    const label=isBusiness
+      ? (c.business_name||c.name||'Business Customer')+(c.contact_person?' — '+c.contact_person:'')+(c.abn?' — ABN '+c.abn:'')
+      : (c.name||'Customer');
+    return '<option value="'+escapeHtml(customerKey(c))+'"'+(String(c.customer_id||'').trim()===currentId?' selected':'')+'>'+escapeHtml(label)+'</option>';
+  }).join('');
+
+  card.innerHTML=
+    '<div style="font-size:22px;font-weight:900;margin-bottom:14px">Change Invoice Customer</div>'+
+    '<div class="small" style="margin-bottom:12px">Invoice '+escapeHtml(o.invoice_no)+' • Order '+escapeHtml(o.order_no||'')+'</div>'+
+    '<label>Choose Customer<select id="invoiceCustomerSelect">'+options+'</select></label>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px">'+
+      '<button id="applyInvoiceCustomer">Apply to Invoice</button>'+
+      '<button id="cancelInvoiceCustomer" class="secondary">Cancel</button>'+
+    '</div>';
+
+  wrap.appendChild(card);
+  document.body.appendChild(wrap);
+
+  document.getElementById('cancelInvoiceCustomer').onclick=()=>wrap.remove();
+  document.getElementById('applyInvoiceCustomer').onclick=()=>{
+    const key=document.getElementById('invoiceCustomerSelect').value;
+    const c=(S.customers||[]).find(x=>customerKey(x)===key);
+    if(!c){alert('Choose a customer.');return}
+
+    Object.assign(o,customerSnapshot(c));
+    o.customer=c.name||c.contact_person||c.business_name||o.customer;
+    o.invoice_customer_refreshed_at=nowIso();
+    o.modified_at=nowIso();
+    markOrder(o);
+    localStorage.setItem(KEY,JSON.stringify(S));
+    save();
+    wrap.remove();
+    alert('Invoice customer changed to '+(c.business_name||c.name||'customer')+'.');
+    openOrderDetail(orderKey(o));
+  };
+}
+function refreshInvoiceCustomerDetails(o){
+  openInvoiceCustomerPicker(o);
 }
 function receiptRef(o){
   return ensureInvoiceNumber(o)||('INV-'+todayIso().slice(0,4)+'-0001');
