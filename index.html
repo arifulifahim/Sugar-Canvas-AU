@@ -229,6 +229,7 @@
   <button id="confirmQuoteBtn" class="wide" type="button" hidden>✓ Record Payment & Confirm Order</button>
   <button id="completeOrderBtn" class="complete-order-btn wide">✓ Complete Order</button>
   <button id="orderReceiptBtn" class="wide" type="button" hidden>🧾 Generate Receipt</button>
+  <button id="refreshInvoiceCustomerBtn" class="secondary wide" type="button" hidden>↻ Refresh Customer Details on Invoice</button>
   <div class="small center" id="orderReceiptHelp" style="margin:-4px 0 12px" hidden>Paid orders can generate, save, print or share a POS-style receipt anytime.</div>
   <div class="action-row">
     <button id="editOrderBtn">Edit Order</button>
@@ -243,7 +244,7 @@
 </section>
 
 <section id="customerForm" class="page">
-  <div class="page-head"><button class="back" id="cancelCustomerFormTop">←</button><h1>Add Customer</h1></div>
+  <div class="page-head"><button class="back" id="cancelCustomerFormTop">←</button><h1 id="customerFormTitle">Add Customer</h1></div>
   <div class="card form">
     <label>Customer Type
       <select id="customerType">
