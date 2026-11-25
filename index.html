@@ -241,6 +241,45 @@
   <div id="customersList" class="list"></div>
 </section>
 
+<section id="customerForm" class="page">
+  <div class="page-head"><button class="back" id="cancelCustomerFormTop">←</button><h1>Add Customer</h1></div>
+  <div class="card form">
+    <label>Customer Type
+      <select id="customerType">
+        <option value="Personal">Personal</option>
+        <option value="Business">Business</option>
+      </select>
+    </label>
+
+    <div id="personalCustomerFields">
+      <label>Customer Name<input id="customerName" autocomplete="name"></label>
+    </div>
+
+    <div id="businessCustomerFields" hidden>
+      <label>Business Name<input id="customerBusinessName" autocomplete="organization"></label>
+      <label>ABN<input id="customerABN" inputmode="numeric" placeholder="Optional"></label>
+      <label>Contact Person<input id="customerContactPerson" autocomplete="name"></label>
+    </div>
+
+    <label>Phone<input id="customerPhone" inputmode="tel" autocomplete="tel"></label>
+    <label>Email<input id="customerEmail" inputmode="email" autocomplete="email"></label>
+    <label>Main Address<textarea id="customerAddress" rows="2"></textarea></label>
+
+    <div id="businessAddressFields" hidden>
+      <label>Billing Address<textarea id="customerBillingAddress" rows="2" placeholder="Leave blank if same as main address"></textarea></label>
+      <label>Delivery Address<textarea id="customerDeliveryAddress" rows="2" placeholder="Leave blank if same as main address"></textarea></label>
+      <label>PO / Reference Number<input id="customerPOReference" placeholder="Optional"></label>
+    </div>
+
+    <label>Referral Customer ID<input id="customerReferral" placeholder="Optional — e.g. SC-C0007"></label>
+    <label>Notes<textarea id="customerNote" rows="3"></textarea></label>
+  </div>
+  <div class="action-row">
+    <button id="saveCustomerForm" type="button">Save Customer</button>
+    <button id="cancelCustomerForm" type="button" class="secondary">Cancel</button>
+  </div>
+</section>
+
 
 <section id="recipes" class="page">
   <div class="page-head"><button class="back" data-go="home">←</button><h1>Recipes</h1></div>
