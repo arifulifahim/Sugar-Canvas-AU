@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='38.0.0';
+const APP_VERSION='39.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -873,8 +873,10 @@ function openOrderDetail(id){
   S.selectedOrderId=orderKey(o);localStorage.setItem(KEY,JSON.stringify(S));
   const box=document.getElementById('orderDetailContent');
   const remaining=Math.max(0,Number(o.price||0)-Number(o.deposit||0));
-  const detailCust=customerForOrder(o);const detailCustomer=(String(detailCust.customer_type||'').toLowerCase()==='business'||detailCust.business_name)?(detailCust.business_name||o.customer):o.customer;
-  let html=`<div class="card detail-card">${detailRow('Customer',detailCustomer)}${o.order_no?detailRow('Order / Quotation No.',o.order_no):''}${o.invoice_no?detailRow('Invoice No.',o.invoice_no):''}${detailRow('Item',titleItem(o.item||'Order'))}${detailRow('Status',o.workflow_status||o.status)}${detailRow('Delivery date',o.date)}${detailRow('Weight',Number(o.target_weight_g||0)>0?`${Number(o.target_weight_g)} g`:'—')}${detailRow('Quantity',o.quantity||1)}</div>`;
+  const detailCust=liveCustomerForOrder(o)||customerForOrder(o);
+  const detailIsBusiness=String(detailCust?.customer_type||'').toLowerCase()==='business'||!!detailCust?.business_name||!!detailCust?.abn;
+  const detailCustomer=detailIsBusiness?(detailCust.business_name||o.customer):(detailCust?.name||o.customer);
+  let html=`<div class="card detail-card">${detailRow(detailIsBusiness?'Business':'Customer',detailCustomer)}${detailIsBusiness&&detailCust.abn?detailRow('Customer ABN',detailCust.abn):''}${detailIsBusiness&&(detailCust.contact_person||detailCust.name)?detailRow('Contact Person',detailCust.contact_person||detailCust.name):''}${o.order_no?detailRow('Order / Quotation No.',o.order_no):''}${o.invoice_no?detailRow('Invoice No.',o.invoice_no):''}${detailRow('Item',titleItem(o.item||'Order'))}${detailRow('Status',o.workflow_status||o.status)}${detailRow('Delivery date',o.date)}${detailRow('Weight',Number(o.target_weight_g||0)>0?`${Number(o.target_weight_g)} g`:'—')}${detailRow('Quantity',o.quantity||1)}</div>`;
   if(Array.isArray(o.items)&&o.items.length){
     html+=`<div class="card detail-card"><div class="detail-section-title">Cake / Add-Ons</div>`;
     o.items.forEach(it=>{
@@ -960,6 +962,16 @@ function confirmQuotationFromDetail(o){
   alert('Order confirmed.\n\nOrder / quotation number: '+o.order_no+'\nInvoice number will be separate when an invoice is created.');
   openOrderDetail(orderKey(o));
 }
+function liveCustomerForOrder(o){
+  const rows=S.customers||[];
+  const cid=String(o?.customer_id||'').trim();
+  if(cid){const c=rows.find(x=>String(x.customer_id||'').trim()===cid);if(c)return c}
+  const psid=String(o?.customer_phone_sync_id||'').trim();
+  if(psid){const c=rows.find(x=>String(x.phone_sync_id||x.id||'').trim()===psid);if(c)return c}
+  const target=String(o?.customer||'').trim().toLowerCase();
+  const matches=rows.filter(c=>[c.name,c.contact_person,c.business_name].some(v=>String(v||'').trim().toLowerCase()===target));
+  return matches.find(c=>String(c.customer_type||'').toLowerCase()==='business'||c.business_name||c.abn)||matches[0]||null;
+}
 function customerForOrder(o){
   if(o?.invoice_no&&(o.customer_business_name||o.customer_abn||o.customer_email||o.customer_contact_person||o.customer_type)){
     return {
@@ -1006,20 +1018,8 @@ function customerForOrder(o){
 }
 function refreshInvoiceCustomerDetails(o){
   if(!o||!o.invoice_no)return;
-  const rows=S.customers||[];
-  let c=null;
-  const cid=String(o.customer_id||'').trim();
-  if(cid)c=rows.find(x=>String(x.customer_id||'').trim()===cid)||null;
-  if(!c){
-    const psid=String(o.customer_phone_sync_id||'').trim();
-    if(psid)c=rows.find(x=>String(x.phone_sync_id||x.id||'').trim()===psid)||null;
-  }
-  if(!c){
-    const target=String(o.customer||'').trim().toLowerCase();
-    const matches=rows.filter(x=>[x.name,x.contact_person,x.business_name].some(v=>String(v||'').trim().toLowerCase()===target));
-    c=matches.find(x=>String(x.customer_type||'').toLowerCase()==='business'||x.business_name||x.abn)||matches[0]||null;
-  }
-  if(!c){alert('Could not find the linked customer record. Edit or select the correct customer first.');return}
+  const c=liveCustomerForOrder(o);
+  if(!c){alert('Could not find the linked customer record. Edit the correct customer in Customers first.');return}
   Object.assign(o,customerSnapshot(c));
   o.customer=c.name||c.contact_person||c.business_name||o.customer;
   o.invoice_customer_refreshed_at=nowIso();
@@ -1027,7 +1027,7 @@ function refreshInvoiceCustomerDetails(o){
   markOrder(o);
   localStorage.setItem(KEY,JSON.stringify(S));
   save();
-  alert('Invoice customer details refreshed from the Customers tab.');
+  alert('Invoice customer details refreshed from Customers.');
   openOrderDetail(orderKey(o));
 }
 function receiptRef(o){
