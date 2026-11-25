@@ -1,4 +1,4 @@
 {
-  "version": "40.0.0",
-  "name": "Force current companion code; preserve invoice layout with controlled customer refresh"
+  "version": "41.0.0",
+  "name": "Choose exact customer for existing invoice and refresh invoice details"
 }
