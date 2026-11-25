@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='36.0.0';
+const APP_VERSION='37.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -48,6 +48,26 @@ function ensureOrderNumber(o){
   if(!/^ORD-\d+$/i.test(n))n=nextSequentialRef('order_no','ORD-',1001);
   o.order_no=n.toUpperCase();
   return o.order_no;
+}
+function ensureInvoiceNumber(o){
+  if(!o)return '';
+  let n=String(o.invoice_no||'').trim().toUpperCase();
+  if(!/^INV-\d{4}-\d{4}$/i.test(n)){
+    const year=todayIso().slice(0,4);
+    let max=0;
+    (S.orders||[]).forEach(x=>{
+      const v=String(x.invoice_no||'').trim().toUpperCase();
+      const m=v.match(new RegExp('^INV-'+year+'-(\\d{4})$'));
+      if(m)max=Math.max(max,Number(m[1]||0));
+    });
+    n='INV-'+year+'-'+String(max+1).padStart(4,'0');
+    o.invoice_no=n;
+    o.invoice_created_date=o.invoice_created_date||todayIso();
+    o.modified_at=nowIso();
+    markOrder(o);
+    localStorage.setItem(KEY,JSON.stringify(S));
+  }
+  return o.invoice_no;
 }
 function ensureQuotationNumber(o){
   if(!o)return '';
@@ -929,7 +949,7 @@ function customerForOrder(o){
   return {};
 }
 function receiptRef(o){
-  return String(o.invoice_no||o.order_no||o.quote_no||o.phone_sync_id||o.id||'ORDER').trim();
+  return ensureInvoiceNumber(o)||('INV-'+todayIso().slice(0,4)+'-0001');
 }
 function latestPaymentMethods(o){
   const methods=[...new Set((o.payments||[]).map(p=>String(p.method||'').trim()).filter(Boolean))];
@@ -988,12 +1008,25 @@ async function buildPosReceiptCanvas(o){
     x.textAlign='right';x.font=(bold?'bold ':'')+'19px Arial';x.fillText(String(value||'—'),right,y);y+=32;
   }
 
-  row('Receipt No.',receiptNo,true);
-  if(orderNo && orderNo!==receiptNo)row('Order No.',orderNo);
-  row('Date issued',issueDate);
+  row('Invoice No.',receiptNo,true);
+  if(orderNo)row('Order No.',orderNo);
+  row('Date issued',o.invoice_created_date||issueDate);
   row('Sale / completed',saleDate);
-  row('Customer',o.customer||'Customer');
-  if(cust.email)row('Customer email',cust.email);
+  const isBusiness=String(cust.customer_type||'').toLowerCase()==='business'||!!cust.business_name||!!cust.abn;
+  if(isBusiness){
+    row('Business',cust.business_name||o.customer||'Business Customer',true);
+    if(cust.abn)row('Customer ABN',cust.abn);
+    if(cust.contact_person||cust.name)row('Contact person',cust.contact_person||cust.name);
+    if(cust.email)row('Business email',cust.email);
+    if(cust.phone)row('Business phone',cust.phone);
+    const receiptAddress=cust.delivery_address||cust.address||cust.billing_address;
+    if(receiptAddress)row('Delivery address',String(receiptAddress).slice(0,52));
+    if(cust.po_reference)row('PO / Reference',cust.po_reference);
+  }else{
+    row('Customer',cust.name||o.customer||'Customer');
+    if(cust.email)row('Customer email',cust.email);
+    if(cust.phone)row('Customer phone',cust.phone);
+  }
 
   y+=10;x.strokeStyle='#ead7df';x.beginPath();x.moveTo(left,y);x.lineTo(right,y);x.stroke();y+=34;
 
@@ -1035,9 +1068,8 @@ async function buildPosReceiptCanvas(o){
 
   x.fillStyle='#6f5963';x.font='16px Arial';x.textAlign='center';
   x.fillText('Receipt for goods/services supplied by Sugar Canvas AU',width/2,y);y+=24;
-  if(!b.gst_registered){x.fillText('GST has not been charged on this sale.',width/2,y);y+=24}
   x.fillText('Please keep this receipt for your records.',width/2,y);y+=28;
-  const fb=b.facebook_url||'https://www.facebook.com/sugarcanvas.au', ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
+  const fb='https://www.facebook.com/sugarcanvas.au', ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
   x.font='15px Arial';x.fillText('Facebook: '+fb.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=22;
   x.fillText('Instagram: '+ig.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=30;
   x.font='16px Arial';x.fillText('Thank you for supporting Sugar Canvas',width/2,y);y+=30;
@@ -1075,7 +1107,7 @@ async function sharePosReceipt(o){
   try{
     const {file}=await posReceiptFile(o);
     const cust=customerForOrder(o);
-    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:`Sugar Canvas paid receipt for ${o.customer||'customer'}${cust.email?' — '+cust.email:''}.\nFacebook: ${S.business?.facebook_url||'https://www.facebook.com/sugarcanvas.au'}\nInstagram: ${S.business?.instagram_url||'https://www.instagram.com/sugarcanvas.au'}`,files:[file]};
+    const data={title:'Sugar Canvas Receipt '+receiptRef(o),text:`Sugar Canvas paid receipt for ${cust.business_name||cust.name||o.customer||'customer'}${cust.abn?' — ABN '+cust.abn:''}${cust.email?' — '+cust.email:''}.\nFacebook: https://www.facebook.com/sugarcanvas.au\nInstagram: ${S.business?.instagram_url||'https://www.instagram.com/sugarcanvas.au'}`,files:[file]};
     if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
       await navigator.share(data);return;
     }
@@ -1170,7 +1202,7 @@ async function buildQuoteCanvas(o){
   x.font='bold 22px Arial';x.fillText(money(paid>0?amountToConfirm:minDep),width/2,y+89);
   x.font='15px Arial';if(payid){x.fillText('PayID: '+payid,width/2,y+118);x.fillText('Payment reference: '+quoteRef(o),width/2,y+143);}else{x.fillText('Payment reference: '+quoteRef(o),width/2,y+118);}y+=boxH+35;
 
-  const fb=b.facebook_url||'https://www.facebook.com/sugarcanvas.au',ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
+  const fb='https://www.facebook.com/sugarcanvas.au',ig=b.instagram_url||'https://www.instagram.com/sugarcanvas.au';
   x.fillStyle='#6f5963';x.font='15px Arial';x.textAlign='center';
   x.fillText('Facebook: '+fb.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=23;
   x.fillText('Instagram: '+ig.replace(/^https?:\/\/(www\.)?/,'').slice(0,54),width/2,y);y+=30;
@@ -1184,7 +1216,7 @@ async function quoteFile(o){
   return {canvas,blob,file:new File([blob],`Sugar_Canvas_Quotation_${quoteRef(o).replace(/[^A-Za-z0-9_-]/g,'_')}.png`,{type:'image/png'})};
 }
 async function shareQuote(o){
-  try{const {file}=await quoteFile(o);const data={title:'Sugar Canvas Quotation '+quoteRef(o),text:`Sugar Canvas quotation for ${o.customer||'customer'}.\nFacebook: ${S.business?.facebook_url||'https://www.facebook.com/sugarcanvas.au'}\nInstagram: ${S.business?.instagram_url||'https://www.instagram.com/sugarcanvas.au'}`,files:[file]};if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share(data);return}alert('Use Save Quotation or Print / Save PDF on this phone.')}catch(e){if(e?.name!=='AbortError')alert('Could not share quotation: '+e.message)}
+  try{const {file}=await quoteFile(o);const data={title:'Sugar Canvas Quotation '+quoteRef(o),text:`Sugar Canvas quotation for ${o.customer||'customer'}.\nFacebook: https://www.facebook.com/sugarcanvas.au\nInstagram: ${S.business?.instagram_url||'https://www.instagram.com/sugarcanvas.au'}`,files:[file]};if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share(data);return}alert('Use Save Quotation or Print / Save PDF on this phone.')}catch(e){if(e?.name!=='AbortError')alert('Could not share quotation: '+e.message)}
 }
 async function saveQuoteFile(o){const {blob,file}=await quoteFile(o);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
 async function printQuote(o){const {canvas}=await quoteFile(o);const w=window.open('','_blank');if(!w){alert('Allow pop-ups to print or save this quotation as PDF.');return}const url=canvas.toDataURL('image/png');w.document.write(`<!doctype html><title>Sugar Canvas Quotation</title><style>@page{size:A4;margin:8mm}body{margin:0;text-align:center}img{width:190mm;max-width:100%;height:auto}</style><img src="${url}"><script>onload=()=>setTimeout(()=>print(),250)<\/script>`);w.document.close()}
