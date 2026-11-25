@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='31.0.0';
+const APP_VERSION='32.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -395,13 +395,28 @@ document.getElementById('reviewCakePrice').onclick=()=>{
 
 function addCustomer(){
   ensurePhoneCustomerIds();
-  const name=prompt('Customer name');if(!name)return null;
+  const isBusiness=confirm('Is this a business customer?\n\nOK = Business\nCancel = Personal');
+  let business_name='',abn='',contact_person='',billing_address='',delivery_address='',po_reference='';
+  let name='';
+  if(isBusiness){
+    business_name=(prompt('Business name')||'').trim();if(!business_name)return null;
+    contact_person=(prompt('Contact person name')||'').trim();
+    name=contact_person||business_name;
+    abn=(prompt('ABN (optional)')||'').trim();
+  }else{
+    name=(prompt('Customer name')||'').trim();if(!name)return null;
+  }
   const phone=prompt('Phone number (optional)')||'';
   const email=prompt('Email (optional)')||'';
-  const address=prompt('Address (optional)')||'';
+  const address=prompt(isBusiness?'Main business address (optional)':'Address (optional)')||'';
+  if(isBusiness){
+    billing_address=prompt('Billing address (optional)\nLeave blank if same as main address')||'';
+    delivery_address=prompt('Delivery address (optional)\nLeave blank if same as main address')||'';
+    po_reference=prompt('PO / Reference number (optional)')||'';
+  }
   const ref=(prompt('Referral Customer ID (optional)\nExample: SC-C0007')||'').trim().toUpperCase();
   if(ref&&!phoneCustomerById(ref)){alert('Referral Customer ID '+ref+' was not found. Sync with the laptop first or check the code.');return null}
-  const c={id:uid(),phone_sync_id:uid(),customer_id:nextPhoneCustomerId(),name:name.trim(),phone,email,address,social:'',referred_by_customer_id:ref,referral_friend_discount_used:false,referral_rewards_available:0,referral_rewards_used:0,successful_referrals:0,modified_at:nowIso()};
+  const c={id:uid(),phone_sync_id:uid(),customer_id:nextPhoneCustomerId(),customer_type:isBusiness?'Business':'Personal',name:name.trim(),business_name,abn,contact_person,phone,email,address,billing_address,delivery_address,po_reference,social:'',note:'',referred_by_customer_id:ref,referral_friend_discount_used:false,referral_rewards_available:0,referral_rewards_used:0,successful_referrals:0,modified_at:nowIso()};
   S.customers.push(c);markCustomer(c);save();return c;
 }
 document.getElementById('addCustomerBtn').onclick=addCustomer;document.getElementById('cakeAddCustomer').onclick=()=>{const c=addCustomer();if(c)document.getElementById('cakeCustomer').value=c.name};document.getElementById('donutAddCustomer').onclick=()=>{const c=addCustomer();if(c)document.getElementById('donutCustomer').value=c.name};
@@ -1172,7 +1187,7 @@ document.getElementById('completeOrderBtn').onclick=completeSelectedOrder;
 document.getElementById('editOrderBtn').onclick=()=>startEditOrder(S.selectedOrderId);
 document.getElementById('deleteOrderBtn').onclick=deleteSelectedOrder;
 document.getElementById('orderSearch').oninput=renderOrders;document.getElementById('orderFilter').onchange=renderOrders;
-function renderCustomers(){ensurePhoneCustomerIds();const list=document.getElementById('customersList');list.innerHTML='';[...S.customers].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(c=>{const d=document.createElement('div');d.className='list-item';d.innerHTML=`<div class="list-top"><b>${escapeHtml(c.name||'Customer')}</b><span class="status">${escapeHtml(c.customer_id||'')}</span></div><div class="small">${escapeHtml(c.phone||'')}</div>${c.referred_by_customer_id?`<div class="small">Referred by: ${escapeHtml(c.referred_by_customer_id)}</div>`:''}<div class="small">Referral rewards: ${Number(c.referral_rewards_available||0)} × 5% available • ${Number(c.referral_rewards_used||0)} used</div>`;list.appendChild(d)});if(!S.customers.length)list.innerHTML='<div class="card muted">No customers yet.</div>'}
+function renderCustomers(){ensurePhoneCustomerIds();const list=document.getElementById('customersList');list.innerHTML='';[...S.customers].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).forEach(c=>{const d=document.createElement('div');d.className='list-item';const isBusiness=String(c.customer_type||'').toLowerCase()==='business'||c.business_name||c.abn;const title=isBusiness?(c.business_name||c.name||'Business Customer'):(c.name||'Customer');const contact=isBusiness?(c.contact_person||c.name||''):'';const addr=c.delivery_address||c.address||'';d.innerHTML=`<div class="list-top"><b>${escapeHtml(title)}</b><span class="status">${escapeHtml(c.customer_id||'')}</span></div>${isBusiness?`<div class="small"><b>Business</b>${c.abn?' • ABN '+escapeHtml(c.abn):''}</div>${contact?`<div class="small">Contact: ${escapeHtml(contact)}</div>`:''}`:''}<div class="small">${escapeHtml(c.phone||'')}${c.email?' • '+escapeHtml(c.email):''}</div>${addr?`<div class="small">${escapeHtml(addr)}</div>`:''}${isBusiness&&c.po_reference?`<div class="small">PO / Ref: ${escapeHtml(c.po_reference)}</div>`:''}${c.referred_by_customer_id?`<div class="small">Referred by: ${escapeHtml(c.referred_by_customer_id)}</div>`:''}<div class="small">Referral rewards: ${Number(c.referral_rewards_available||0)} × 5% available • ${Number(c.referral_rewards_used||0)} used</div>`;list.appendChild(d)});if(!S.customers.length)list.innerHTML='<div class="card muted">No customers yet.</div>'}
 function recipeKey(r){return String(r?.id||r?.name||'')}
 function findRecipeForPhone(id){return S.recipes.find(r=>recipeKey(r)===String(id||''))}
 function formatQty(v){const n=Number(v);if(Number.isFinite(n))return Number.isInteger(n)?String(n):String(Math.round(n*100)/100);return String(v??'')}
