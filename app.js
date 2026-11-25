@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='34.0.0';
+const APP_VERSION='35.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -42,19 +42,20 @@ function nextSequentialRef(field,prefix,start=1001){
   });
   return prefix+String(max+1);
 }
-function ensureQuotationNumber(o){
-  if(!o)return '';
-  if(!String(o.quote_no||'').trim()){
-    o.quote_no=nextSequentialRef('quote_no','QUO-',1001);
-    o.quote_created_date=o.quote_created_date||todayIso();
-    o.modified_at=nowIso();markOrder(o);localStorage.setItem(KEY,JSON.stringify(S));
-  }
-  return String(o.quote_no).trim();
-}
 function ensureOrderNumber(o){
   if(!o)return '';
-  if(!String(o.order_no||'').trim())o.order_no=nextSequentialRef('order_no','ORD-',1001);
-  return String(o.order_no).trim();
+  let n=String(o.order_no||'').trim();
+  if(!/^ORD-\d+$/i.test(n))n=nextSequentialRef('order_no','ORD-',1001);
+  o.order_no=n.toUpperCase();
+  return o.order_no;
+}
+function ensureQuotationNumber(o){
+  if(!o)return '';
+  const n=ensureOrderNumber(o);
+  o.quote_no=n;
+  o.quote_created_date=o.quote_created_date||todayIso();
+  o.modified_at=nowIso();markOrder(o);localStorage.setItem(KEY,JSON.stringify(S));
+  return n;
 }
 
 function nextPhoneCustomerId(){
@@ -513,8 +514,8 @@ function saveCake(status){
 
   const receipt=buildCakeReceipt();
   const syncId=existing?orderKey(existing):uid();
-  const quoteNo=status==='Quotation'?(existing?.quote_no||nextSequentialRef('quote_no','QUO-',1001)):(existing?.quote_no||'');
-  const orderNo=status==='Confirmed'?(existing?.order_no||nextSequentialRef('order_no','ORD-',1001)):(existing?.order_no||'');
+  const orderNo=existing?.order_no||nextSequentialRef('order_no','ORD-',1001);
+  const quoteNo=orderNo;
   const o={
     ...(existing||{}),phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?(existing?.quote_created_date||todayIso()):(existing?.quote_created_date||''),confirmed_date:status==='Confirmed'?(existing?.confirmed_date||todayIso()):(existing?.confirmed_date||''),customer,item:r.name,recipe:r.name,quantity:q,target_weight_g:w,
     date:document.getElementById('cakeDate').value||todayIso(),
@@ -657,8 +658,8 @@ function saveDonut(status){
     return;
   }
   const syncId=existing?orderKey(existing):uid();
-  const quoteNo=status==='Quotation'?(existing?.quote_no||nextSequentialRef('quote_no','QUO-',1001)):(existing?.quote_no||'');
-  const orderNo=status==='Confirmed'?(existing?.order_no||nextSequentialRef('order_no','ORD-',1001)):(existing?.order_no||'');
+  const orderNo=existing?.order_no||nextSequentialRef('order_no','ORD-',1001);
+  const quoteNo=orderNo;
   const baseItems=calc.base>0?[{id:uid(),item:`${names[kind]} - ${q} pcs`,item_type:'Donut Menu Item',quantity:q,price:calc.base,base_cost:0,cost:0}]:[];
   const customLines=customItems.map(x=>({id:x.id||uid(),item:x.description,item_type:'Custom Item',quantity:Number(x.quantity||1),price:Number(x.amount||0),base_cost:0,cost:0,manual_customer_price:true}));
   const customSummary=customItems.map(x=>x.description).filter(Boolean).slice(0,2).join(' + ');
@@ -740,8 +741,8 @@ function saveBrownie(status){
   var minConfirm=minimumConfirmDeposit(finalTotal,internalCost);
   if(status==='Confirmed'&&dep+0.001<minConfirm){alert("This quotation cannot be confirmed yet. Minimum payment required: "+money(minConfirm)+".");return}
   var syncId=existing?orderKey(existing):uid();
-  var quoteNo=status==='Quotation'?((existing&&existing.quote_no)||nextSequentialRef('quote_no','QUO-',1001)):((existing&&existing.quote_no)||'');
-  var orderNo=status==='Confirmed'?((existing&&existing.order_no)||nextSequentialRef('order_no','ORD-',1001)):((existing&&existing.order_no)||'');
+  var orderNo=(existing&&existing.order_no)||nextSequentialRef('order_no','ORD-',1001);
+  var quoteNo=orderNo;
   var customItems=((S.brownieDraft&&S.brownieDraft.customItems)||[]).map(function(x){return {id:x.id,item:x.description,item_type:'Custom',quantity:x.quantity,price:x.amount,base_cost:0}});
   var mainLine={item:menu.name,item_type:'Brownie',quantity:1,price:calc.base,base_cost:internalCost};
   var o=Object.assign({},existing||{},{phone_sync_id:syncId,quote_no:quoteNo,order_no:orderNo,quote_created_date:status==='Quotation'?((existing&&existing.quote_created_date)||todayIso()):((existing&&existing.quote_created_date)||''),confirmed_date:status==='Confirmed'?((existing&&existing.confirmed_date)||todayIso()):((existing&&existing.confirmed_date)||''),customer:customer,product_type:'brownie',item:menu.name,recipe:'',quantity:1,target_weight_g:0,brownie_kind:calc.kind,brownie_piece_count:pieces,date:document.getElementById('brownieDate').value||todayIso(),base_cost:internalCost,cost:internalCost,customisation:0,delivery_needed:document.getElementById('brownieDeliveryNeeded').value==='yes',delivery_charge:calc.delivery,price:finalTotal,deposit:dep,status:status,minimum_deposit_required:minConfirm,referral_discount_type:referral.type,referral_discount_percent:referral.type?5:0,referral_discount_amount:referral.amount,referral_code_used:referral.referral_code,workflow_status:status==='Confirmed'?'Confirmed':((existing&&existing.workflow_status)||''),note:document.getElementById('brownieNote').value,created:(existing&&existing.created)||todayIso(),modified_at:nowIso(),items:[mainLine].concat(customItems)});
@@ -779,7 +780,7 @@ function openOrderDetail(id){
   const box=document.getElementById('orderDetailContent');
   const remaining=Math.max(0,Number(o.price||0)-Number(o.deposit||0));
   const detailCust=customerForOrder(o);const detailCustomer=(String(detailCust.customer_type||'').toLowerCase()==='business'||detailCust.business_name)?(detailCust.business_name||o.customer):o.customer;
-  let html=`<div class="card detail-card">${detailRow('Customer',detailCustomer)}${o.quote_no?detailRow('Quotation',o.quote_no):''}${o.order_no?detailRow('Order No.',o.order_no):''}${detailRow('Item',titleItem(o.item||'Order'))}${detailRow('Status',o.workflow_status||o.status)}${detailRow('Delivery date',o.date)}${detailRow('Weight',Number(o.target_weight_g||0)>0?`${Number(o.target_weight_g)} g`:'—')}${detailRow('Quantity',o.quantity||1)}</div>`;
+  let html=`<div class="card detail-card">${detailRow('Customer',detailCustomer)}${o.order_no?detailRow('Order / Quotation No.',o.order_no):''}${o.invoice_no?detailRow('Invoice No.',o.invoice_no):''}${detailRow('Item',titleItem(o.item||'Order'))}${detailRow('Status',o.workflow_status||o.status)}${detailRow('Delivery date',o.date)}${detailRow('Weight',Number(o.target_weight_g||0)>0?`${Number(o.target_weight_g)} g`:'—')}${detailRow('Quantity',o.quantity||1)}</div>`;
   if(Array.isArray(o.items)&&o.items.length){
     html+=`<div class="card detail-card"><div class="detail-section-title">Cake / Add-Ons</div>`;
     o.items.forEach(it=>{
@@ -1006,7 +1007,7 @@ async function printPosReceipt(o){
 }
 
 function quoteRef(o){
-  return ensureQuotationNumber(o)||'QUO-1001';
+  return ensureQuotationNumber(o)||'ORD-1001';
 }
 async function buildQuoteCanvas(o){
   const width=720,height=1420;
@@ -1698,9 +1699,9 @@ setupAutoUpdates();
   o.deposit=Number(newPaid.toFixed(2));
   o.payments=Array.isArray(o.payments)?o.payments:[];
   if(amount>0)o.payments.push({id:uid(),date:todayIso(),amount:Number(amount.toFixed(2)),method,note:'Recorded on phone when quotation confirmed'});
-  o.status='Confirmed';o.workflow_status='Confirmed';o.confirmed_date=o.confirmed_date||todayIso();ensureOrderNumber(o);
+  o.status='Confirmed';o.workflow_status='Confirmed';o.confirmed_date=o.confirmed_date||todayIso();ensureQuotationNumber(o);
   o.modified_at=nowIso();markOrder(o);localStorage.setItem(KEY,JSON.stringify(S));save();
-  alert('Order confirmed.\n\nQuotation: '+o.quote_no+'\nOrder: '+o.order_no);
+  alert('Order confirmed.\n\nOrder / quotation number: '+o.order_no+'\nInvoice number will be separate when an invoice is created.');
   openOrderDetail(orderKey(o));
 }
 function customerForOrder(o){
