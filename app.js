@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='42.0.0';
+const APP_VERSION='43.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -347,7 +347,7 @@ function cakeCalc(){
   const addonCost=addonRows.reduce((a,x)=>a+Number(x.base_cost||0),0);
 
   const rawRecipeCost=r ? Number(r.base_cost||0)*(w/Number(r.base_weight_g||500))*q : 0;
-  const recipeCost=rawRecipeCost>0 ? Math.ceil((rawRecipeCost*1.10)+0.75) : 0;
+  const recipeCost=rawRecipeCost;
   const cost=recipeCost+addonCost+pack+customizationCost;
 
   const pct=getProfitPct({validate:false});
@@ -417,7 +417,7 @@ function buildCakeReceipt(){
     cost:calc.pack,
     kind:`Packaging Adjusted Cost • raw ${money(calc.rawPack)} + 50%`
   });
-  if(calc.customizationCost>0)lines.push({name:'Customization',cost:calc.customizationCost,kind:'Customization Cost'});
+  if(calc.customizationCost>0)lines.push({name:'Customization / POS',cost:calc.customizationCost,kind:'Same customisation total used on laptop'});
   return {customer,r,calc,w,q,lines,totalCost:calc.cost,selling:calc.selling,customerPrice:calc.customerPrice,deliveryCharge:calc.deliveryCharge,profitPct:calc.profitPct};
 }
 
