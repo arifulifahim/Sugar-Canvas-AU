@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},seasonal_menus:[],seasonalDirty:false,cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},donut_world:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='46.0.0';
+const APP_VERSION='47.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!Array.isArray(S.seasonal_menus))S.seasonal_menus=[];if(typeof S.seasonalDirty!=='boolean')S.seasonalDirty=false;if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.donut_world)S.donut_world={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -1797,7 +1797,10 @@ function seasonalVariantCost(v){
   const autoDonut=!!donutType||!!v?.auto_donut_cost;
   let recipe=0;
   if(autoTower){
-    recipe=seasonalDonutUnitCost('ring')*Math.max(0,Number(v?.donut_count||0));
+    const qty=Math.max(0,Number(v?.donut_count||0));
+    recipe=String(towerSize).toLowerCase().startsWith('mini')
+      ? Math.max(0,Number(v?.manual_tower_base_cost||0))
+      : seasonalDonutUnitCost('ring')*qty;
   }else if(autoDonut){
     const kind=donutType.toLowerCase().startsWith('ring')?'ring':'bomboloni';
     recipe=seasonalDonutUnitCost(kind)*seasonalPackQty(v?.size_label);
@@ -1897,7 +1900,9 @@ function openSeasonalProductForm(menuId,productId=''){
       const c=seasonalVariantCost(v),r=(S.recipes||[]).find(x=>String(x.id)===String(v.base_recipe_id));
       const row=document.createElement('div');row.className='card';row.style.margin='10px 0';
       const autoLabel=(v.tower_size||v.auto_tower_cost)
-        ? ('Auto max Ring × '+Number(v.donut_count||0))
+        ? (String(v.tower_size||'').toLowerCase().startsWith('mini')
+            ? ('Manual Mini base '+money(Number(v.manual_tower_base_cost||0)))
+            : ('Auto max Ring × '+Number(v.donut_count||0)))
         : (v.donut_box_type?('Auto max '+(String(v.donut_box_type).toLowerCase().startsWith('ring')?'Ring':'Bomboloni')+' × '+seasonalPackQty(v.size_label)):(escapeHtml(r?.name||'No recipe')+' • '+Number(v.recipe_amount_g||0)+' g'));
       row.innerHTML='<div class="list-top"><b>'+escapeHtml(v.size_label||'Size')+'</b><span class="status">'+money(c.total)+' cost</span></div>'+
         '<div class="small">'+autoLabel+' • '+(v.extra_ingredients||[]).length+' extra ingredient(s) • '+(v.packaging||[]).length+' packaging item(s)</div>'+
@@ -1925,10 +1930,10 @@ function openSeasonalVariantForm(product,variantId,done){
   const isDonut=product.type==='Donuts';
   const isTower=product.type==='Donut Tower';
   const legacyMini=String(product.type||'')==='Mini Donut Tower';
-  const draft=existing?JSON.parse(JSON.stringify(existing)):{id:uid(),size_label:(SEASONAL_SIZES[product.type]||[])[0]||'',base_recipe_id:'',recipe_amount_g:500,donut_box_type:isDonut?'Assorted':'',tower_size:isTower?(legacyMini?'Mini':'Regular'):'',donut_count:isTower?(legacyMini?15:22):0,extra_ingredients:[],packaging:[],other_cost:0,menu_price:0};
+  const draft=existing?JSON.parse(JSON.stringify(existing)):{id:uid(),size_label:(SEASONAL_SIZES[product.type]||[])[0]||'',base_recipe_id:'',recipe_amount_g:500,donut_box_type:isDonut?'Assorted':'',tower_size:isTower?(legacyMini?'Mini':'Regular'):'',donut_count:isTower?(legacyMini?15:22):0,manual_tower_base_cost:0,extra_ingredients:[],packaging:[],other_cost:0,menu_price:0};
   const recipeOpts=(S.recipes||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(r=>'<option value="'+escapeHtml(r.id)+'">'+escapeHtml(titleItem(r.name))+'</option>').join('');
   const specialFields=isTower
-    ? '<label>Tower Size<select id="svTowerSize"><option>Mini</option><option>Regular</option></select></label><label>Number of donuts<input id="svDonutCount" type="number" min="1" step="1" value="'+Number(draft.donut_count||22)+'"></label><label>Base Ring Donut Cost (automatic)<input id="svAutoDonut" readonly></label>'
+    ? '<label>Tower Size<select id="svTowerSize"><option>Mini</option><option>Regular</option></select></label><label>Number of donuts<input id="svDonutCount" type="number" min="1" step="1" value="'+Number(draft.donut_count||22)+'"></label><label id="svMiniBaseWrap">Mini donut base cost ($)<input id="svMiniBase" type="number" min="0" step="0.01" value="'+Number(draft.manual_tower_base_cost||0)+'"></label><label id="svRegularAutoWrap">Regular tower base cost (automatic)<input id="svAutoDonut" readonly></label>'
     : (isDonut
       ? '<label>Donut Box Type<select id="svDonutType"><option>Assorted</option><option>Bomboloni</option><option>Ring Donuts</option></select></label><label>Base Donut Cost (automatic)<input id="svAutoDonut" readonly></label>'
       : '<label>Base Recipe<select id="svRecipe"><option value="">Choose recipe</option>'+recipeOpts+'</select></label><label>Recipe amount used (g)<input id="svGrams" type="number" min="1" step="1" value="'+Number(draft.recipe_amount_g||500)+'"></label>');
@@ -1951,6 +1956,7 @@ function openSeasonalVariantForm(product,variantId,done){
     if(isTower){
       draft.tower_size=card.querySelector('#svTowerSize').value;
       draft.donut_count=Math.max(1,Math.round(Number(card.querySelector('#svDonutCount').value||0)));
+      draft.manual_tower_base_cost=Math.max(0,Number(card.querySelector('#svMiniBase').value||0));
       draft.size_label=draft.tower_size+' Tower — '+draft.donut_count+' pcs';
       draft.auto_tower_cost=true;draft.base_recipe_id='';draft.recipe_amount_g=0;draft.donut_box_type='';draft.auto_donut_cost=false;
     }else{
@@ -1980,8 +1986,12 @@ function openSeasonalVariantForm(product,variantId,done){
     pb.querySelectorAll('button').forEach(b=>b.onclick=()=>{draft.packaging.splice(Number(b.dataset.i),1);renderParts()});
     const c=seasonalVariantCost(draft);
     if(isTower){
+      const isMini=String(draft.tower_size||'').toLowerCase().startsWith('mini');
       const unit=seasonalDonutUnitCost('ring'),qty=Math.max(0,Number(draft.donut_count||0));
-      card.querySelector('#svAutoDonut').value=money(unit)+' each × '+qty+' = '+money(unit*qty);
+      const miniWrap=card.querySelector('#svMiniBaseWrap'),regularWrap=card.querySelector('#svRegularAutoWrap');
+      if(miniWrap)miniWrap.style.display=isMini?'block':'none';
+      if(regularWrap)regularWrap.style.display=isMini?'none':'block';
+      if(!isMini)card.querySelector('#svAutoDonut').value=money(unit)+' each × '+qty+' = '+money(unit*qty);
     }else if(isDonut){
       const kind=String(draft.donut_box_type||'').toLowerCase().startsWith('ring')?'ring':'bomboloni';
       const unit=seasonalDonutUnitCost(kind),qty=seasonalPackQty(draft.size_label);
@@ -1989,7 +1999,7 @@ function openSeasonalVariantForm(product,variantId,done){
     }
     card.querySelector('#svSummary').innerHTML='<div><span>'+(isTower?'Base Ring Donut Cost':(isDonut?'Base Donut Cost':'Recipe Cost'))+'</span><b>'+money(c.recipe)+'</b></div><div><span>Extra Ingredients</span><b>'+money(c.extras)+'</b></div><div><span>Packaging</span><b>'+money(c.pack)+'</b></div><div><span>Other Cost</span><b>'+money(c.other)+'</b></div><div><span>Total Cost</span><b>'+money(c.total)+'</b></div><div><span>Minimum / Suggested (80%)</span><b>'+money(c.suggested)+'</b></div>';
   };
-  (isTower?['svTowerSize','svDonutCount','svOther','svPrice']:(isDonut?['svSize','svDonutType','svOther','svPrice']:['svSize','svRecipe','svGrams','svOther','svPrice'])).forEach(id=>card.querySelector('#'+id).addEventListener('input',renderParts));
+  (isTower?['svTowerSize','svDonutCount','svMiniBase','svOther','svPrice']:(isDonut?['svSize','svDonutType','svOther','svPrice']:['svSize','svRecipe','svGrams','svOther','svPrice'])).forEach(id=>card.querySelector('#'+id).addEventListener('input',renderParts));
   card.querySelector('#svAddIngredient').onclick=()=>{
     const names=(S.ingredients||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
     const {wrap:w,card:c}=seasonalModal('Add Seasonal Ingredient','<label>Ingredient<select id="sei">'+names.map(x=>'<option value="'+escapeHtml(x.id)+'">'+escapeHtml(x.name)+'</option>').join('')+'</select></label><label>Quantity<input id="seq" type="number" min="0.01" step="0.01" value="1"></label><label>Unit<select id="seu"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>each</option></select></label><div class="action-row"><button id="sea">Add</button><button id="sec" class="secondary">Cancel</button></div>');
@@ -2001,7 +2011,7 @@ function openSeasonalVariantForm(product,variantId,done){
     c.querySelector('#spc').onclick=()=>w.remove();c.querySelector('#spa').onclick=()=>{draft.packaging.push({packaging_id:c.querySelector('#spi').value,quantity:Number(c.querySelector('#spq').value||1)});w.remove();renderParts()};
   };
   card.querySelector('#svCancel').onclick=()=>wrap.remove();
-  card.querySelector('#svSave').onclick=()=>{syncDraft();if(!isDonut&&!isTower&&!draft.base_recipe_id){alert('Choose a base recipe.');return}if(!isDonut&&!isTower&&draft.recipe_amount_g<=0){alert('Recipe amount must be greater than zero.');return}if(isTower&&draft.donut_count<1){alert('Enter the number of donuts for this tower.');return}if((isDonut||isTower)&&seasonalVariantCost(draft).recipe<=0){alert('No Ring/Donut World cost is available. Sync with the laptop after setting up Donut World.');return}if(existing)Object.assign(existing,draft);else product.variants=(product.variants||[]).concat([draft]);wrap.remove();done()};
+  card.querySelector('#svSave').onclick=()=>{syncDraft();if(!isDonut&&!isTower&&!draft.base_recipe_id){alert('Choose a base recipe.');return}if(!isDonut&&!isTower&&draft.recipe_amount_g<=0){alert('Recipe amount must be greater than zero.');return}if(isTower&&draft.donut_count<1){alert('Enter the number of donuts for this tower.');return}if(isTower&&String(draft.tower_size||'').toLowerCase().startsWith('mini')&&draft.manual_tower_base_cost<=0){alert('Enter the total base cost for the Mini Tower donuts.');return}if((isDonut||(isTower&&!String(draft.tower_size||'').toLowerCase().startsWith('mini')))&&seasonalVariantCost(draft).recipe<=0){alert('No Ring/Donut World cost is available. Sync with the laptop after setting up Donut World.');return}if(existing)Object.assign(existing,draft);else product.variants=(product.variants||[]).concat([draft]);wrap.remove();done()};
   if(existing)card.querySelector('#svDelete').onclick=()=>{product.variants=(product.variants||[]).filter(x=>x!==existing);wrap.remove();done()};
   renderParts();
 }
