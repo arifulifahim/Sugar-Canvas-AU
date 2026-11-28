@@ -53,7 +53,7 @@
 
     <label>Cake<select id="cakeRecipe"></select></label>
     <div class="two">
-      <label>Weight (g)<input id="cakeWeight" type="number" value="500" min="100" step="50"></label>
+      <label>Weight (g)<input id="cakeWeight" type="number" value="500" min="1" step="1" list="cakeWeightPresets"><datalist id="cakeWeightPresets"><option value="100"><option value="250"><option value="300"><option value="400"><option value="500"><option value="600"><option value="750"><option value="1000"><option value="1250"><option value="1500"><option value="2000"><option value="2500"><option value="3000"><option value="3500"><option value="4000"></datalist></label>
       <label>Quantity<input id="cakeQty" type="number" value="1" min="1" step="1"></label>
     </div>
 
@@ -441,6 +441,6 @@
   <button data-go="sync">Sync</button>
 </nav>
 
-<script src="app.js?v=41"></script>
+<script src="app.js?v=42"></script>
 </body>
 </html>
