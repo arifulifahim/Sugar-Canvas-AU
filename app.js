@@ -7,7 +7,7 @@ function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.to
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
 function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},seasonal_menus:[],seasonalDirty:false,cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},donut_world:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='47.0.0';
+const APP_VERSION='48.0.0';
 let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!Array.isArray(S.seasonal_menus))S.seasonal_menus=[];if(typeof S.seasonalDirty!=='boolean')S.seasonalDirty=false;if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.donut_world)S.donut_world={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
@@ -1812,7 +1812,7 @@ function seasonalVariantCost(v){
   const extras=(v?.extra_ingredients||[]).reduce((sum,x)=>sum+seasonalIngredientCost(x),0);
   const pack=(v?.packaging||[]).reduce((sum,x)=>{
     const p=(S.packaging||[]).find(y=>String(y.id)===String(x.packaging_id));
-    return sum+(p?Number(p.total_cost||0)*1.5*Math.max(0,Number(x.quantity||1)):0);
+    return sum+(p?Number(p.total_cost||0)*0.5*Math.max(0,Number(x.quantity||1)):0);
   },0);
   const other=Math.max(0,Number(v?.other_cost||0));
   const total=recipe+extras+pack+other;
@@ -1980,8 +1980,8 @@ function openSeasonalVariantForm(product,variantId,done){
     ib.querySelectorAll('button').forEach(b=>b.onclick=()=>{draft.extra_ingredients.splice(Number(b.dataset.i),1);renderParts()});
     const pb=card.querySelector('#svPackaging');pb.innerHTML='';
     (draft.packaging||[]).forEach((x,i)=>{
-      const p=(S.packaging||[]).find(y=>String(y.id)===String(x.packaging_id));const cost=p?Number(p.total_cost||0)*1.5*Number(x.quantity||1):0;
-      const r=document.createElement('div');r.className='receipt-line';r.innerHTML='<span>'+escapeHtml(p?.name||'Packaging')+'<div class="item-sub">Qty '+Number(x.quantity||1)+' • raw '+money(Number(p?.total_cost||0))+' + 50%</div></span><b>'+money(cost)+'</b><button class="remove-mini" data-i="'+i+'" type="button">×</button>';pb.appendChild(r);
+      const p=(S.packaging||[]).find(y=>String(y.id)===String(x.packaging_id));const cost=p?Number(p.total_cost||0)*0.5*Number(x.quantity||1):0;
+      const r=document.createElement('div');r.className='receipt-line';r.innerHTML='<span>'+escapeHtml(p?.name||'Packaging')+'<div class="item-sub">Qty '+Number(x.quantity||1)+' • raw '+money(Number(p?.total_cost||0))+' × 0.5</div></span><b>'+money(cost)+'</b><button class="remove-mini" data-i="'+i+'" type="button">×</button>';pb.appendChild(r);
     });
     pb.querySelectorAll('button').forEach(b=>b.onclick=()=>{draft.packaging.splice(Number(b.dataset.i),1);renderParts()});
     const c=seasonalVariantCost(draft);
