@@ -6,19 +6,19 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='43.0.0';
-let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},seasonal_menus:[],seasonalDirty:false,cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='44.0.0';
+let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!Array.isArray(S.seasonal_menus))S.seasonal_menus=[];if(typeof S.seasonalDirty!=='boolean')S.seasonalDirty=false;if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function decodeB64urlJson(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0)));return JSON.parse(new TextDecoder().decode(bytes))}
 async function hmacHex(secret,msg){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(msg));return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};const recipeMap=p.recipe_ingredient_map||{};S.recipes=(p.recipes||[]).map(r=>{const direct=Array.isArray(r.ingredients)?r.ingredients:[];const alt=Array.isArray(r.ingredient_lines)?r.ingredient_lines:(Array.isArray(r.recipe_ingredients)?r.recipe_ingredients:[]);const mapped=Array.isArray(recipeMap[String(r.id||'')])?recipeMap[String(r.id||'')]:[];const lines=direct.length?direct:(alt.length?alt:mapped);return {...r,ingredients:lines};});S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;S.premium_donut_menu=p.premium_donut_menu||S.premium_donut_menu||{};
+function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};const recipeMap=p.recipe_ingredient_map||{};S.recipes=(p.recipes||[]).map(r=>{const direct=Array.isArray(r.ingredients)?r.ingredients:[];const alt=Array.isArray(r.ingredient_lines)?r.ingredient_lines:(Array.isArray(r.recipe_ingredients)?r.recipe_ingredients:[]);const mapped=Array.isArray(recipeMap[String(r.id||'')])?recipeMap[String(r.id||'')]:[];const lines=direct.length?direct:(alt.length?alt:mapped);return {...r,ingredients:lines};});S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;S.premium_donut_menu=p.premium_donut_menu||S.premium_donut_menu||{};if(clearChanges||!S.seasonalDirty)S.seasonal_menus=p.seasonal_menus||S.seasonal_menus||[];
   const changedCustomers=new Set(Object.keys(S.changes.customers||{}));const changedOrders=new Set(Object.keys(S.changes.orders||{}));
   const byCid=new Map(S.customers.map(c=>[c.phone_sync_id||c.id,c]));(p.customers||[]).forEach(c=>{const id=c.phone_sync_id||c.id;if(clearChanges||!changedCustomers.has(id))byCid.set(id,c)});S.customers=[...byCid.values()];
   const byOid=new Map(S.orders.map(o=>[o.phone_sync_id||o.id||o.order_no,o]));(p.orders||[]).forEach(o=>{const id=o.phone_sync_id||o.id||o.order_no;if(clearChanges||!changedOrders.has(id))byOid.set(id,o)});S.orders=[...byOid.values()];
-  if(clearChanges)S.changes={customers:{},orders:{},purchases:{}};ensurePhoneCustomerIds();S.last_sync=new Date().toLocaleString();prune();}
+  if(clearChanges){S.changes={customers:{},orders:{},purchases:{}};S.seasonalDirty=false;}ensurePhoneCustomerIds();S.last_sync=new Date().toLocaleString();prune();}
 function currentReturnUrl(){return location.origin+location.pathname}
 function handleLanReturn(){const raw=location.hash||'';if(!raw.startsWith('#lanPair=')&&!raw.startsWith('#lanSync='))return false;try{const pair=raw.startsWith('#lanPair=');const value=raw.substring(pair?9:9);const data=decodeB64urlJson(value);if(!data.ok)throw new Error('Sync failed');if(pair){S.lan={server:data.server||'',token:data.token||'',device_id:data.device_id||S.device_id,device_name:S.lan?.device_name||'Phone'};applyLaptopSnapshot(data.snapshot,true);alert('Phone paired successfully. Future Wi-Fi syncs will not need the pairing code.')}else{applyLaptopSnapshot(data.snapshot,true);alert('Sugar Canvas synced successfully.');}history.replaceState(null,'',location.pathname+location.search);localStorage.setItem(KEY,JSON.stringify(S));return true}catch(e){history.replaceState(null,'',location.pathname+location.search);alert('Could not finish Wi-Fi sync: '+e.message);return false}}
 
@@ -1746,7 +1746,200 @@ document.getElementById('deletePurchaseBtn').onclick=()=>{
 function renderHome(){const active=S.orders.filter(o=>!['completed','cancelled','finalised'].includes(String(o.workflow_status||o.status||'').toLowerCase())).length,quotes=S.orders.filter(o=>String(o.status||'').toLowerCase()==='quotation').length,changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;document.getElementById('homeSummary').innerHTML=`<div class="list-item"><span>Active orders</span><b>${active}</b></div><div class="list-item"><span>Quotes</span><b>${quotes}</b></div><div class="list-item"><span>Recipes</span><b>${S.recipes.length}</b></div><div class="list-item"><span>Changes waiting for laptop</span><b>${changes}</b></div>`}
 function renderSync(){const changes=Object.keys(S.changes.orders).length+Object.keys(S.changes.customers).length+Object.keys(S.changes.purchases||{}).length;const paired=!!(S.lan&&S.lan.token&&S.lan.server);document.getElementById('wifiNotPaired').hidden=paired;document.getElementById('wifiPaired').hidden=!paired;if(paired){document.getElementById('pairedLaptop').textContent='Paired laptop: '+S.lan.server;document.getElementById('pairedServer').value=S.lan.server}else{document.getElementById('lanServer').value=S.lan?.server||'';document.getElementById('lanDeviceName').value=S.lan?.device_name||''}
   document.getElementById('syncStatus').innerHTML=`<p><b>Last successful sync:</b> ${S.last_sync}</p><p><b>Business ABN synced:</b> ${S.business?.abn||'Not received from laptop yet'}</p><p><b>Changes waiting for laptop:</b> ${changes}</p><p><b>Phone history:</b> last 30 days + active/future orders</p><p><b>Connection:</b> ${paired?'Paired — no code needed':'Not paired yet'}</p>`;document.getElementById('syncBadge').textContent=changes?`${changes} waiting`:(paired?'Paired':'Offline ready')}
-function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));customerOptions(document.getElementById('brownieCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();renderDonutCustomItems();renderPremiumDonutMenu();donutCalc();renderBrownieCustomItems();brownieCalc();renderOrders();renderCustomers();renderRecipes();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
+
+const SEASONAL_SIZES={
+  'Cupcakes':['4 pcs','6 pcs','12 pcs'],
+  'Cupcake Bouquet':['7 pcs','12 pcs'],
+  'Donuts':['4 pcs','6 pcs','8 pcs','10 pcs'],
+  'Regular Donut Tower':['22 pcs'],
+  'Mini Donut Tower':['15 pcs'],
+  'Cakesicles':['4 pcs','6 pcs','12 pcs'],
+  'Cake Pops':['6 pcs','12 pcs']
+};
+function seasonalMenuById(id){return (S.seasonal_menus||[]).find(x=>String(x.id)===String(id))||null}
+function seasonalProductById(menu,id){return (menu?.products||[]).find(x=>String(x.id)===String(id))||null}
+function phoneBaseUnit(q,u){
+  q=Number(q||0);u=String(u||'');
+  if(u==='kg')return [q*1000,'g'];
+  if(u==='L')return [q*1000,'ml'];
+  return [q,u];
+}
+function seasonalIngredientCost(line){
+  const ing=(S.ingredients||[]).find(x=>String(x.id)===String(line?.ingredient_id));
+  if(!ing)return 0;
+  const [bq,bu]=phoneBaseUnit(ing.buy_qty,ing.buy_unit||'g');
+  const [uq,uu]=phoneBaseUnit(line.qty,line.unit||ing.buy_unit||'g');
+  if(!bq||bu!==uu)return 0;
+  return Number(ing.buy_price||0)/bq*uq;
+}
+function seasonalVariantCost(v){
+  const r=(S.recipes||[]).find(x=>String(x.id)===String(v?.base_recipe_id));
+  const grams=Math.max(0,Number(v?.recipe_amount_g||0));
+  const recipe=r&&grams>0?Number(r.base_cost||0)*(grams/Math.max(1,Number(r.base_weight_g||500))):0;
+  const extras=(v?.extra_ingredients||[]).reduce((sum,x)=>sum+seasonalIngredientCost(x),0);
+  const pack=(v?.packaging||[]).reduce((sum,x)=>{
+    const p=(S.packaging||[]).find(y=>String(y.id)===String(x.packaging_id));
+    return sum+(p?Number(p.total_cost||0)*1.5*Math.max(0,Number(x.quantity||1)):0);
+  },0);
+  const other=Math.max(0,Number(v?.other_cost||0));
+  const total=recipe+extras+pack+other;
+  return {recipe,extras,pack,other,total,suggested:total>0?Math.ceil(total*1.8):0};
+}
+function seasonalModal(title,body){
+  document.getElementById('seasonalModalOverlay')?.remove();
+  const wrap=document.createElement('div');wrap.id='seasonalModalOverlay';
+  wrap.style.cssText='position:fixed;inset:0;z-index:30000;background:rgba(35,22,28,.68);padding:14px;overflow:auto';
+  const card=document.createElement('div');card.style.cssText='background:#fff;border-radius:22px;padding:18px;max-width:560px;margin:24px auto';
+  card.innerHTML='<div style="font-size:24px;font-weight:900;margin-bottom:14px">'+escapeHtml(title)+'</div>'+body;
+  wrap.appendChild(card);document.body.appendChild(wrap);return {wrap,card};
+}
+function seasonalMarkChanged(){S.seasonalDirty=true;localStorage.setItem(KEY,JSON.stringify(S));renderSeasonalMenus()}
+function renderSeasonalMenus(){
+  const list=document.getElementById('seasonalMenusList');if(!list)return;
+  list.innerHTML='';
+  const rows=[...(S.seasonal_menus||[])].sort((a,b)=>String(a.start_date||'').localeCompare(String(b.start_date||'')));
+  rows.forEach(m=>{
+    const d=document.createElement('div');d.className='list-item';
+    const products=(m.products||[]);
+    const variantCount=products.reduce((n,p)=>n+(p.variants||[]).length,0);
+    let productHtml='';
+    products.forEach(p=>{
+      const variants=(p.variants||[]).map(v=>{
+        const c=seasonalVariantCost(v),price=Number(v.menu_price||0);
+        return '<div class="small" style="padding:6px 0;border-top:1px solid #f5d5e2"><b>'+escapeHtml(v.size_label||'')+'</b> • Cost '+money(c.total)+' • Suggested '+money(c.suggested)+' • Menu '+(price?money(price):'—')+'</div>';
+      }).join('');
+      productHtml+='<div class="card" style="margin:10px 0;padding:12px"><div class="list-top"><b>'+escapeHtml(p.name||'Seasonal Product')+'</b><span class="status">'+escapeHtml(p.type||'')+'</span></div>'+variants+'<button class="secondary seasonal-edit-product" data-menu="'+escapeHtml(m.id)+'" data-product="'+escapeHtml(p.id)+'" type="button">Edit Product</button></div>';
+    });
+    d.innerHTML='<div class="list-top"><b>'+escapeHtml(m.name||'Seasonal Menu')+'</b><span class="status">'+escapeHtml(m.status||'Draft')+'</span></div>'+
+      '<div class="small">'+escapeHtml((m.start_date||'')+' → '+(m.end_date||''))+' • '+products.length+' product'+(products.length===1?'':'s')+' • '+variantCount+' size'+(variantCount===1?'':'s')+'</div>'+
+      (m.notes?'<div class="small">'+escapeHtml(m.notes)+'</div>':'')+
+      '<div class="action-row" style="margin-top:10px"><button class="secondary seasonal-edit-menu" data-id="'+escapeHtml(m.id)+'">Edit Menu</button><button class="seasonal-add-product" data-id="'+escapeHtml(m.id)+'">+ Product</button><button class="secondary seasonal-duplicate-menu" data-id="'+escapeHtml(m.id)+'">Duplicate</button></div>'+
+      productHtml;
+    list.appendChild(d);
+  });
+  if(!rows.length)list.innerHTML='<div class="card muted">No seasonal menus yet. Create Christmas, Valentine’s Day, New Year or any other limited menu.</div>';
+  list.querySelectorAll('.seasonal-edit-menu').forEach(b=>b.onclick=()=>openSeasonalMenuForm(b.dataset.id));
+  list.querySelectorAll('.seasonal-add-product').forEach(b=>b.onclick=()=>openSeasonalProductForm(b.dataset.id,''));
+  list.querySelectorAll('.seasonal-edit-product').forEach(b=>b.onclick=()=>openSeasonalProductForm(b.dataset.menu,b.dataset.product));
+  list.querySelectorAll('.seasonal-duplicate-menu').forEach(b=>b.onclick=()=>duplicateSeasonalMenu(b.dataset.id));
+}
+function openSeasonalMenuForm(id=''){
+  const m=seasonalMenuById(id);
+  const {wrap,card}=seasonalModal(m?'Edit Seasonal Menu':'Create Seasonal Menu',
+    '<label>Menu Name<input id="smName" value="'+escapeHtml(m?.name||'')+'" placeholder="Christmas 2026"></label>'+
+    '<div class="two"><label>Start Date<input id="smStart" type="date" value="'+escapeHtml(m?.start_date||todayIso())+'"></label><label>End Date<input id="smEnd" type="date" value="'+escapeHtml(m?.end_date||todayIso())+'"></label></div>'+
+    '<label>Status<select id="smStatus"><option>Draft</option><option>Active</option><option>Ended</option><option>Archived</option></select></label>'+
+    '<label>Description / Notes<textarea id="smNotes" rows="3">'+escapeHtml(m?.notes||'')+'</textarea></label>'+
+    '<div class="action-row"><button id="smSave">Save Menu</button><button id="smCancel" class="secondary">Cancel</button>'+(m?'<button id="smDelete" class="danger">Delete</button>':'')+'</div>');
+  card.querySelector('#smStatus').value=m?.status||'Draft';
+  card.querySelector('#smCancel').onclick=()=>wrap.remove();
+  card.querySelector('#smSave').onclick=()=>{
+    const name=card.querySelector('#smName').value.trim();if(!name){alert('Enter a menu name.');return}
+    const target=m||{id:uid(),products:[]};
+    Object.assign(target,{name,start_date:card.querySelector('#smStart').value,end_date:card.querySelector('#smEnd').value,status:card.querySelector('#smStatus').value,notes:card.querySelector('#smNotes').value.trim(),updated:nowIso()});
+    if(!m)S.seasonal_menus.push(target);
+    wrap.remove();seasonalMarkChanged();
+  };
+  if(m)card.querySelector('#smDelete').onclick=()=>{if(confirm('Delete '+m.name+'? Saved recipes and ingredients are not deleted.')){S.seasonal_menus=S.seasonal_menus.filter(x=>x!==m);wrap.remove();seasonalMarkChanged()}};
+}
+function duplicateSeasonalMenu(id){
+  const m=seasonalMenuById(id);if(!m)return;
+  const name=prompt('Name for copied menu',m.name+' Copy');if(!name)return;
+  const c=JSON.parse(JSON.stringify(m));c.id=uid();c.name=name.trim();c.status='Draft';c.products=(c.products||[]).map(p=>({...p,id:uid(),variants:(p.variants||[]).map(v=>({...v,id:uid()}))}));
+  S.seasonal_menus.push(c);seasonalMarkChanged();
+}
+function openSeasonalProductForm(menuId,productId=''){
+  const menu=seasonalMenuById(menuId);if(!menu)return;
+  const p=seasonalProductById(menu,productId);
+  const draft=p?JSON.parse(JSON.stringify(p)):{id:uid(),name:'',type:'Cupcakes',variants:[]};
+  const {wrap,card}=seasonalModal(p?'Edit Seasonal Product':'Add Seasonal Product',
+    '<label>Product Name<input id="spName" value="'+escapeHtml(draft.name||'')+'" placeholder="Christmas Floral Cupcakes"></label>'+
+    '<label>Product Type<select id="spType">'+Object.keys(SEASONAL_SIZES).map(x=>'<option>'+escapeHtml(x)+'</option>').join('')+'</select></label>'+
+    '<div class="small">Add each pack size once. Every size can use different recipe grams, extras, packaging and final price.</div>'+
+    '<div id="spVariants"></div>'+
+    '<button id="spAddSize" class="secondary wide">+ Add Size</button>'+
+    '<div class="action-row"><button id="spSave">Save Product</button><button id="spCancel" class="secondary">Cancel</button>'+(p?'<button id="spDelete" class="danger">Remove</button>':'')+'</div>');
+  card.querySelector('#spType').value=draft.type||'Cupcakes';
+  const render=()=>{
+    const box=card.querySelector('#spVariants');box.innerHTML='';
+    (draft.variants||[]).forEach(v=>{
+      const c=seasonalVariantCost(v),r=(S.recipes||[]).find(x=>String(x.id)===String(v.base_recipe_id));
+      const row=document.createElement('div');row.className='card';row.style.margin='10px 0';
+      row.innerHTML='<div class="list-top"><b>'+escapeHtml(v.size_label||'Size')+'</b><span class="status">'+money(c.total)+' cost</span></div>'+
+        '<div class="small">'+escapeHtml(r?.name||'No recipe')+' • '+Number(v.recipe_amount_g||0)+' g • '+(v.extra_ingredients||[]).length+' extra ingredient(s) • '+(v.packaging||[]).length+' packaging item(s)</div>'+
+        '<div class="small"><b>Suggested '+money(c.suggested)+'</b> • Menu '+(Number(v.menu_price||0)?money(v.menu_price):'—')+'</div>'+
+        '<button class="secondary edit-seasonal-size" data-id="'+escapeHtml(v.id)+'">Edit Size</button>';
+      box.appendChild(row);
+    });
+    box.querySelectorAll('.edit-seasonal-size').forEach(b=>b.onclick=()=>openSeasonalVariantForm(draft,b.dataset.id,render));
+  };
+  card.querySelector('#spType').onchange=e=>{draft.type=e.target.value;};
+  card.querySelector('#spAddSize').onclick=()=>{draft.type=card.querySelector('#spType').value;openSeasonalVariantForm(draft,'',render)};
+  card.querySelector('#spCancel').onclick=()=>wrap.remove();
+  card.querySelector('#spSave').onclick=()=>{
+    draft.name=card.querySelector('#spName').value.trim();draft.type=card.querySelector('#spType').value;
+    if(!draft.name){alert('Enter a product name.');return}
+    if(!(draft.variants||[]).length){alert('Add at least one size.');return}
+    if(p)Object.assign(p,draft);else menu.products=(menu.products||[]).concat([draft]);
+    wrap.remove();seasonalMarkChanged();
+  };
+  if(p)card.querySelector('#spDelete').onclick=()=>{if(confirm('Remove '+p.name+' from this seasonal menu?')){menu.products=(menu.products||[]).filter(x=>x!==p);wrap.remove();seasonalMarkChanged()}};
+  render();
+}
+function openSeasonalVariantForm(product,variantId,done){
+  const existing=(product.variants||[]).find(x=>String(x.id)===String(variantId));
+  const draft=existing?JSON.parse(JSON.stringify(existing)):{id:uid(),size_label:(SEASONAL_SIZES[product.type]||[])[0]||'',base_recipe_id:'',recipe_amount_g:500,extra_ingredients:[],packaging:[],other_cost:0,menu_price:0};
+  const recipeOpts=(S.recipes||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(r=>'<option value="'+escapeHtml(r.id)+'">'+escapeHtml(titleItem(r.name))+'</option>').join('');
+  const {wrap,card}=seasonalModal('Seasonal Size Costing',
+    '<label>Pack Size<select id="svSize">'+(SEASONAL_SIZES[product.type]||[]).map(x=>'<option>'+escapeHtml(x)+'</option>').join('')+'</select></label>'+
+    '<label>Base Recipe<select id="svRecipe"><option value="">Choose recipe</option>'+recipeOpts+'</select></label>'+
+    '<label>Recipe amount used (g)<input id="svGrams" type="number" min="1" step="1" value="'+Number(draft.recipe_amount_g||500)+'"></label>'+
+    '<label>Other decoration / seasonal cost ($)<input id="svOther" type="number" min="0" step="0.10" value="'+Number(draft.other_cost||0)+'"></label>'+
+    '<label>Final Menu Price ($)<input id="svPrice" type="number" min="0" step="0.50" value="'+Number(draft.menu_price||0)+'"></label>'+
+    '<div class="card"><div class="list-top"><b>Extra Ingredients</b><button id="svAddIngredient" type="button" class="secondary">+ Add</button></div><div id="svIngredients"></div></div>'+
+    '<div class="card"><div class="list-top"><b>Packaging</b><button id="svAddPack" type="button" class="secondary">+ Add</button></div><div class="small">You can add more than one packaging item.</div><div id="svPackaging"></div></div>'+
+    '<div class="price-card" id="svSummary"></div>'+
+    '<div class="action-row"><button id="svSave">Save Size</button><button id="svCancel" class="secondary">Cancel</button>'+(existing?'<button id="svDelete" class="danger">Remove Size</button>':'')+'</div>');
+  card.querySelector('#svSize').value=draft.size_label||'';
+  card.querySelector('#svRecipe').value=draft.base_recipe_id||'';
+  const syncDraft=()=>{
+    draft.size_label=card.querySelector('#svSize').value;draft.base_recipe_id=card.querySelector('#svRecipe').value;draft.recipe_amount_g=Number(card.querySelector('#svGrams').value||0);draft.other_cost=Number(card.querySelector('#svOther').value||0);draft.menu_price=Number(card.querySelector('#svPrice').value||0);
+  };
+  const renderParts=()=>{
+    syncDraft();
+    const ib=card.querySelector('#svIngredients');ib.innerHTML='';
+    (draft.extra_ingredients||[]).forEach((x,i)=>{
+      const ing=(S.ingredients||[]).find(y=>String(y.id)===String(x.ingredient_id));
+      const r=document.createElement('div');r.className='receipt-line';r.innerHTML='<span>'+escapeHtml(ing?.name||'Ingredient')+'<div class="item-sub">'+Number(x.qty||0)+' '+escapeHtml(x.unit||'')+'</div></span><b>'+money(seasonalIngredientCost(x))+'</b><button class="remove-mini" data-i="'+i+'" type="button">×</button>';ib.appendChild(r);
+    });
+    ib.querySelectorAll('button').forEach(b=>b.onclick=()=>{draft.extra_ingredients.splice(Number(b.dataset.i),1);renderParts()});
+    const pb=card.querySelector('#svPackaging');pb.innerHTML='';
+    (draft.packaging||[]).forEach((x,i)=>{
+      const p=(S.packaging||[]).find(y=>String(y.id)===String(x.packaging_id));const cost=p?Number(p.total_cost||0)*1.5*Number(x.quantity||1):0;
+      const r=document.createElement('div');r.className='receipt-line';r.innerHTML='<span>'+escapeHtml(p?.name||'Packaging')+'<div class="item-sub">Qty '+Number(x.quantity||1)+' • raw '+money(Number(p?.total_cost||0))+' + 50%</div></span><b>'+money(cost)+'</b><button class="remove-mini" data-i="'+i+'" type="button">×</button>';pb.appendChild(r);
+    });
+    pb.querySelectorAll('button').forEach(b=>b.onclick=()=>{draft.packaging.splice(Number(b.dataset.i),1);renderParts()});
+    const c=seasonalVariantCost(draft);
+    card.querySelector('#svSummary').innerHTML='<div><span>Recipe Cost</span><b>'+money(c.recipe)+'</b></div><div><span>Extra Ingredients</span><b>'+money(c.extras)+'</b></div><div><span>Packaging</span><b>'+money(c.pack)+'</b></div><div><span>Other Cost</span><b>'+money(c.other)+'</b></div><div><span>Total Cost</span><b>'+money(c.total)+'</b></div><div><span>Minimum / Suggested (80%)</span><b>'+money(c.suggested)+'</b></div>';
+  };
+  ['svSize','svRecipe','svGrams','svOther','svPrice'].forEach(id=>card.querySelector('#'+id).addEventListener('input',renderParts));
+  card.querySelector('#svAddIngredient').onclick=()=>{
+    const names=(S.ingredients||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+    const {wrap:w,card:c}=seasonalModal('Add Seasonal Ingredient','<label>Ingredient<select id="sei">'+names.map(x=>'<option value="'+escapeHtml(x.id)+'">'+escapeHtml(x.name)+'</option>').join('')+'</select></label><label>Quantity<input id="seq" type="number" min="0.01" step="0.01" value="1"></label><label>Unit<select id="seu"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>each</option></select></label><div class="action-row"><button id="sea">Add</button><button id="sec" class="secondary">Cancel</button></div>');
+    c.querySelector('#sec').onclick=()=>w.remove();c.querySelector('#sea').onclick=()=>{draft.extra_ingredients.push({ingredient_id:c.querySelector('#sei').value,qty:Number(c.querySelector('#seq').value||0),unit:c.querySelector('#seu').value});w.remove();renderParts()};
+  };
+  card.querySelector('#svAddPack').onclick=()=>{
+    const rows=(S.packaging||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+    const {wrap:w,card:c}=seasonalModal('Add Packaging','<label>Packaging<select id="spi">'+rows.map(x=>'<option value="'+escapeHtml(x.id)+'">'+escapeHtml(x.name)+' — '+money(x.total_cost)+'</option>').join('')+'</select></label><label>Quantity<input id="spq" type="number" min="0.01" step="0.01" value="1"></label><div class="action-row"><button id="spa">Add</button><button id="spc" class="secondary">Cancel</button></div>');
+    c.querySelector('#spc').onclick=()=>w.remove();c.querySelector('#spa').onclick=()=>{draft.packaging.push({packaging_id:c.querySelector('#spi').value,quantity:Number(c.querySelector('#spq').value||1)});w.remove();renderParts()};
+  };
+  card.querySelector('#svCancel').onclick=()=>wrap.remove();
+  card.querySelector('#svSave').onclick=()=>{syncDraft();if(!draft.base_recipe_id){alert('Choose a base recipe.');return}if(draft.recipe_amount_g<=0){alert('Recipe amount must be greater than zero.');return}if(existing)Object.assign(existing,draft);else product.variants=(product.variants||[]).concat([draft]);wrap.remove();done()};
+  if(existing)card.querySelector('#svDelete').onclick=()=>{product.variants=(product.variants||[]).filter(x=>x!==existing);wrap.remove();done()};
+  renderParts();
+}
+document.getElementById('addSeasonalMenuBtn').onclick=()=>openSeasonalMenuForm('');
+function renderAll(){customerOptions(document.getElementById('cakeCustomer'));customerOptions(document.getElementById('donutCustomer'));customerOptions(document.getElementById('brownieCustomer'));recipeOptions();packagingOptions();renderAddonChoices();cakeCalc();renderDonutCustomItems();renderPremiumDonutMenu();donutCalc();renderBrownieCustomItems();brownieCalc();renderOrders();renderCustomers();renderRecipes();renderSeasonalMenus();renderPurchases();renderPurchaseVendorOptions();renderPurchasePaymentOptions();renderPurchaseIngredientOptions();renderHome();renderSync()}
 document.getElementById('importLaptop').addEventListener('change',async e=>{
   const f=e.target.files[0];
   if(!f)return;
@@ -1792,7 +1985,7 @@ document.getElementById('forgetLaptop').onclick=()=>{
 document.getElementById('syncNow').onclick=async()=>{
   try{
     if(!(S.lan&&S.lan.token&&S.lan.server)){alert('Pair this phone first.');return}
-    const payload={schema:'sugar_canvas_phone_changes',version:12,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
+    const payload={schema:'sugar_canvas_phone_changes',version:12,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases),seasonal_menus:S.seasonalDirty?S.seasonal_menus:undefined};
     const enc=b64urlJson(payload);
     if(enc.length>70000){alert('There are too many unsynced changes for Wi-Fi bridge sync. Use Backup File Sync once, then continue with Wi-Fi sync.');return}
     const ts=Math.floor(Date.now()/1000).toString();
@@ -1803,7 +1996,7 @@ document.getElementById('syncNow').onclick=async()=>{
 };
 
 document.getElementById('exportLaptop').onclick=()=>{
-  const payload={schema:'sugar_canvas_phone_changes',version:11,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases)};
+  const payload={schema:'sugar_canvas_phone_changes',version:11,generated_at:nowIso(),device_id:S.device_id,customers:Object.values(S.changes.customers),orders:Object.values(S.changes.orders),purchases:Object.values(S.changes.purchases),seasonal_menus:S.seasonalDirty?S.seasonal_menus:undefined};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
