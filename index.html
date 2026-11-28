@@ -39,6 +39,7 @@
     <button class="tile" data-go="orders"><span>📋</span><b>Orders</b></button>
     <button class="tile" data-go="customers"><span>👤</span><b>Customers</b></button>
     <button class="tile" data-go="recipes"><span>📖</span><b>Recipes</b></button>
+    <button class="tile" data-go="seasonal"><span>✨</span><b>Seasonal Menus</b></button>
     <button class="tile" data-go="purchases"><span>🧾</span><b>Purchases</b></button>
     <button class="tile" data-go="sync"><span>↕</span><b>Sync</b></button>
   </div>
@@ -284,6 +285,15 @@
 </section>
 
 
+<section id="seasonal" class="page">
+  <div class="page-head"><button class="back" data-go="home">←</button><h1>Seasonal Menus</h1></div>
+  <div class="card">
+    <div class="small">Christmas, Valentine’s Day, New Year and other limited menus. Reuse your existing recipes and add only what changes.</div>
+  </div>
+  <button id="addSeasonalMenuBtn" class="wide">+ Create Seasonal Menu</button>
+  <div id="seasonalMenusList" class="list"></div>
+</section>
+
 <section id="recipes" class="page">
   <div class="page-head"><button class="back" data-go="home">←</button><h1>Recipes</h1></div>
   <div class="card form">
@@ -442,6 +452,6 @@
   <button data-go="sync">Sync</button>
 </nav>
 
-<script src="app.js?v=43"></script>
+<script src="app.js?v=44"></script>
 </body>
 </html>
