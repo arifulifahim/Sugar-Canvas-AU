@@ -6,15 +6,15 @@ function money(n){return '$'+Number(n||0).toFixed(2)}
 function titleItem(v){return String(v||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
 function uid(){return 'ph_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8)}
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){return fresh()}}
-function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},seasonal_menus:[],seasonalDirty:false,cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
-const APP_VERSION='44.0.0';
-let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!Array.isArray(S.seasonal_menus))S.seasonal_menus=[];if(typeof S.seasonalDirty!=='boolean')S.seasonalDirty=false;if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
+function fresh(){return {device_id:uid(),last_sync:'Never',business:{name:'Sugar Canvas AU',abn:'',address:'',email:'',phone:'',payid:'',facebook_url:'https://www.facebook.com/sugarcanvas.au',instagram_url:'https://www.instagram.com/sugarcanvas.au',gst_registered:false},recipes:[],ingredients:[],suppliers:[],purchases:[],packaging:[],customers:[],orders:[],donut_menu:{bomboloni:{4:22,6:30,8:38,10:46},ring_glazed:{4:16,6:20,8:27},ring_cinnamon:{4:17,6:21,8:27},ring_assorted:{4:19,6:26,8:34,10:42},premium_assorted:{6:37,8:48,12:70},premium_single:{mango_passion:6.5,coffee_caramel:6.5,strawberry:6,blueberry:6}},changes:{customers:{},orders:{},purchases:{}},seasonal_menus:[],seasonalDirty:false,cakeDraft:{addons:[],customAddons:[]},donutDraft:{customItems:[]},premium_donut_menu:{},donut_world:{},brownieDraft:{customItems:[]},lan:{server:'',token:'',device_id:'',device_name:''}}}
+const APP_VERSION='45.0.0';
+let S=load();ensurePhoneCustomerIds();if(!S.ingredients)S.ingredients=[];if(!S.suppliers)S.suppliers=[];if(!S.finance_payment_methods)S.finance_payment_methods=[{id:'',name:'Cash',type:'Cash'}];if(!S.purchases)S.purchases=[];if(!S.changes.purchases)S.changes.purchases={};if(!Array.isArray(S.seasonal_menus))S.seasonal_menus=[];if(typeof S.seasonalDirty!=='boolean')S.seasonalDirty=false;if(!S.cakeDraft)S.cakeDraft={addons:[],customAddons:[]};if(!S.donutDraft)S.donutDraft={customItems:[]};if(!Array.isArray(S.donutDraft.customItems))S.donutDraft.customItems=[];if(!S.premium_donut_menu)S.premium_donut_menu={};if(!S.donut_world)S.donut_world={};if(!S.brownieDraft)S.brownieDraft={customItems:[]};if(!Array.isArray(S.brownieDraft.customItems))S.brownieDraft.customItems=[];if(!Number(S.cakeDraft.profitPct)||Number(S.cakeDraft.profitPct)<80)S.cakeDraft.profitPct=80;if(!('editingOrderId' in S))S.editingOrderId='';if(!('selectedOrderId' in S))S.selectedOrderId='';if(!('selectedRecipeId' in S))S.selectedRecipeId='';
 function save(){localStorage.setItem(KEY,JSON.stringify(S));renderAll()}
 function normaliseLanServer(v){let s=String(v||'').trim().replace(/\/$/,'');if(!s)return '';if(!/^https?:\/\//i.test(s))s='http://'+s;return s}
 function b64urlJson(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function decodeB64urlJson(s){s=String(s||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const bin=atob(s);const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0)));return JSON.parse(new TextDecoder().decode(bytes))}
 async function hmacHex(secret,msg){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(msg));return [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join('')}
-function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};const recipeMap=p.recipe_ingredient_map||{};S.recipes=(p.recipes||[]).map(r=>{const direct=Array.isArray(r.ingredients)?r.ingredients:[];const alt=Array.isArray(r.ingredient_lines)?r.ingredient_lines:(Array.isArray(r.recipe_ingredients)?r.recipe_ingredients:[]);const mapped=Array.isArray(recipeMap[String(r.id||'')])?recipeMap[String(r.id||'')]:[];const lines=direct.length?direct:(alt.length?alt:mapped);return {...r,ingredients:lines};});S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;S.premium_donut_menu=p.premium_donut_menu||S.premium_donut_menu||{};if(clearChanges||!S.seasonalDirty)S.seasonal_menus=p.seasonal_menus||S.seasonal_menus||[];
+function applyLaptopSnapshot(p,clearChanges=true){if(!p||p.schema!=='sugar_canvas_phone_sync')throw new Error('Wrong laptop snapshot');S.business=p.business||S.business||{};const recipeMap=p.recipe_ingredient_map||{};S.recipes=(p.recipes||[]).map(r=>{const direct=Array.isArray(r.ingredients)?r.ingredients:[];const alt=Array.isArray(r.ingredient_lines)?r.ingredient_lines:(Array.isArray(r.recipe_ingredients)?r.recipe_ingredients:[]);const mapped=Array.isArray(recipeMap[String(r.id||'')])?recipeMap[String(r.id||'')]:[];const lines=direct.length?direct:(alt.length?alt:mapped);return {...r,ingredients:lines};});S.ingredients=p.ingredients||S.ingredients||[];S.suppliers=p.suppliers||[];S.finance_payment_methods=p.finance_payment_methods||S.finance_payment_methods||[{id:'',name:'Cash',type:'Cash'}];S.purchases=p.purchases||S.purchases||[];S.packaging=p.packaging||[];S.donut_menu=p.donut_menu||S.donut_menu;S.premium_donut_menu=p.premium_donut_menu||S.premium_donut_menu||{};S.donut_world=p.donut_world||S.donut_world||{};if(clearChanges||!S.seasonalDirty)S.seasonal_menus=p.seasonal_menus||S.seasonal_menus||[];
   const changedCustomers=new Set(Object.keys(S.changes.customers||{}));const changedOrders=new Set(Object.keys(S.changes.orders||{}));
   const byCid=new Map(S.customers.map(c=>[c.phone_sync_id||c.id,c]));(p.customers||[]).forEach(c=>{const id=c.phone_sync_id||c.id;if(clearChanges||!changedCustomers.has(id))byCid.set(id,c)});S.customers=[...byCid.values()];
   const byOid=new Map(S.orders.map(o=>[o.phone_sync_id||o.id||o.order_no,o]));(p.orders||[]).forEach(o=>{const id=o.phone_sync_id||o.id||o.order_no;if(clearChanges||!changedOrders.has(id))byOid.set(id,o)});S.orders=[...byOid.values()];
@@ -1772,10 +1772,37 @@ function seasonalIngredientCost(line){
   if(!bq||bu!==uu)return 0;
   return Number(ing.buy_price||0)/bq*uq;
 }
+function seasonalPackQty(label){
+  const m=String(label||'').match(/(\d+)/);
+  return m?Number(m[1]):0;
+}
+function seasonalDonutUnitCost(kind){
+  const want=String(kind||'').toLowerCase().startsWith('ring')?'ring':'bomboloni';
+  let max=0;
+  Object.entries(S.donut_world||{}).forEach(([key,cfg])=>{
+    cfg=cfg||{};
+    const k=String(cfg.kind||String(key).split('|')[0]||'').trim().toLowerCase();
+    if(k!==want)return;
+    const dough=(S.recipes||[]).find(r=>String(r.id)===String(cfg.dough_recipe_id)) || (S.recipes||[]).find(r=>String(r.name||'').trim().toLowerCase()===String(cfg.dough_recipe||'').trim().toLowerCase());
+    const fill=(S.recipes||[]).find(r=>String(r.id)===String(cfg.filling_recipe_id)) || (S.recipes||[]).find(r=>String(r.name||'').trim().toLowerCase()===String(cfg.filling_recipe||'').trim().toLowerCase());
+    const dc=dough?Number(dough.base_cost||0)*(Number(cfg.dough_g_per_piece||0)/Math.max(1,Number(dough.base_weight_g||500))):0;
+    const fc=fill?Number(fill.base_cost||0)*(Number(cfg.filling_g_per_piece||0)/Math.max(1,Number(fill.base_weight_g||500))):0;
+    max=Math.max(max,dc+fc);
+  });
+  return max;
+}
 function seasonalVariantCost(v){
-  const r=(S.recipes||[]).find(x=>String(x.id)===String(v?.base_recipe_id));
-  const grams=Math.max(0,Number(v?.recipe_amount_g||0));
-  const recipe=r&&grams>0?Number(r.base_cost||0)*(grams/Math.max(1,Number(r.base_weight_g||500))):0;
+  const donutType=String(v?.donut_box_type||'').trim();
+  const autoDonut=!!donutType||!!v?.auto_donut_cost;
+  let recipe=0;
+  if(autoDonut){
+    const kind=donutType.toLowerCase().startsWith('ring')?'ring':'bomboloni';
+    recipe=seasonalDonutUnitCost(kind)*seasonalPackQty(v?.size_label);
+  }else{
+    const r=(S.recipes||[]).find(x=>String(x.id)===String(v?.base_recipe_id));
+    const grams=Math.max(0,Number(v?.recipe_amount_g||0));
+    recipe=r&&grams>0?Number(r.base_cost||0)*(grams/Math.max(1,Number(r.base_weight_g||500))):0;
+  }
   const extras=(v?.extra_ingredients||[]).reduce((sum,x)=>sum+seasonalIngredientCost(x),0);
   const pack=(v?.packaging||[]).reduce((sum,x)=>{
     const p=(S.packaging||[]).find(y=>String(y.id)===String(x.packaging_id));
@@ -1865,8 +1892,9 @@ function openSeasonalProductForm(menuId,productId=''){
     (draft.variants||[]).forEach(v=>{
       const c=seasonalVariantCost(v),r=(S.recipes||[]).find(x=>String(x.id)===String(v.base_recipe_id));
       const row=document.createElement('div');row.className='card';row.style.margin='10px 0';
+      const autoLabel=v.donut_box_type?('Auto max '+(String(v.donut_box_type).toLowerCase().startsWith('ring')?'Ring':'Bomboloni')+' × '+seasonalPackQty(v.size_label)):(escapeHtml(r?.name||'No recipe')+' • '+Number(v.recipe_amount_g||0)+' g');
       row.innerHTML='<div class="list-top"><b>'+escapeHtml(v.size_label||'Size')+'</b><span class="status">'+money(c.total)+' cost</span></div>'+
-        '<div class="small">'+escapeHtml(r?.name||'No recipe')+' • '+Number(v.recipe_amount_g||0)+' g • '+(v.extra_ingredients||[]).length+' extra ingredient(s) • '+(v.packaging||[]).length+' packaging item(s)</div>'+
+        '<div class="small">'+autoLabel+' • '+(v.extra_ingredients||[]).length+' extra ingredient(s) • '+(v.packaging||[]).length+' packaging item(s)</div>'+
         '<div class="small"><b>Suggested '+money(c.suggested)+'</b> • Menu '+(Number(v.menu_price||0)?money(v.menu_price):'—')+'</div>'+
         '<button class="secondary edit-seasonal-size" data-id="'+escapeHtml(v.id)+'">Edit Size</button>';
       box.appendChild(row);
@@ -1888,12 +1916,15 @@ function openSeasonalProductForm(menuId,productId=''){
 }
 function openSeasonalVariantForm(product,variantId,done){
   const existing=(product.variants||[]).find(x=>String(x.id)===String(variantId));
-  const draft=existing?JSON.parse(JSON.stringify(existing)):{id:uid(),size_label:(SEASONAL_SIZES[product.type]||[])[0]||'',base_recipe_id:'',recipe_amount_g:500,extra_ingredients:[],packaging:[],other_cost:0,menu_price:0};
+  const isDonut=product.type==='Donuts';
+  const draft=existing?JSON.parse(JSON.stringify(existing)):{id:uid(),size_label:(SEASONAL_SIZES[product.type]||[])[0]||'',base_recipe_id:'',recipe_amount_g:500,donut_box_type:isDonut?'Assorted':'',extra_ingredients:[],packaging:[],other_cost:0,menu_price:0};
   const recipeOpts=(S.recipes||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(r=>'<option value="'+escapeHtml(r.id)+'">'+escapeHtml(titleItem(r.name))+'</option>').join('');
+  const donutFields=isDonut
+    ? '<label>Donut Box Type<select id="svDonutType"><option>Assorted</option><option>Bomboloni</option><option>Ring Donuts</option></select></label><label>Base Donut Cost (automatic)<input id="svAutoDonut" readonly></label>'
+    : '<label>Base Recipe<select id="svRecipe"><option value="">Choose recipe</option>'+recipeOpts+'</select></label><label>Recipe amount used (g)<input id="svGrams" type="number" min="1" step="1" value="'+Number(draft.recipe_amount_g||500)+'"></label>';
   const {wrap,card}=seasonalModal('Seasonal Size Costing',
     '<label>Pack Size<select id="svSize">'+(SEASONAL_SIZES[product.type]||[]).map(x=>'<option>'+escapeHtml(x)+'</option>').join('')+'</select></label>'+
-    '<label>Base Recipe<select id="svRecipe"><option value="">Choose recipe</option>'+recipeOpts+'</select></label>'+
-    '<label>Recipe amount used (g)<input id="svGrams" type="number" min="1" step="1" value="'+Number(draft.recipe_amount_g||500)+'"></label>'+
+    donutFields+
     '<label>Other decoration / seasonal cost ($)<input id="svOther" type="number" min="0" step="0.10" value="'+Number(draft.other_cost||0)+'"></label>'+
     '<label>Final Menu Price ($)<input id="svPrice" type="number" min="0" step="0.50" value="'+Number(draft.menu_price||0)+'"></label>'+
     '<div class="card"><div class="list-top"><b>Extra Ingredients</b><button id="svAddIngredient" type="button" class="secondary">+ Add</button></div><div id="svIngredients"></div></div>'+
@@ -1901,9 +1932,17 @@ function openSeasonalVariantForm(product,variantId,done){
     '<div class="price-card" id="svSummary"></div>'+
     '<div class="action-row"><button id="svSave">Save Size</button><button id="svCancel" class="secondary">Cancel</button>'+(existing?'<button id="svDelete" class="danger">Remove Size</button>':'')+'</div>');
   card.querySelector('#svSize').value=draft.size_label||'';
-  card.querySelector('#svRecipe').value=draft.base_recipe_id||'';
+  if(isDonut)card.querySelector('#svDonutType').value=draft.donut_box_type||'Assorted';
+  else card.querySelector('#svRecipe').value=draft.base_recipe_id||'';
   const syncDraft=()=>{
-    draft.size_label=card.querySelector('#svSize').value;draft.base_recipe_id=card.querySelector('#svRecipe').value;draft.recipe_amount_g=Number(card.querySelector('#svGrams').value||0);draft.other_cost=Number(card.querySelector('#svOther').value||0);draft.menu_price=Number(card.querySelector('#svPrice').value||0);
+    draft.size_label=card.querySelector('#svSize').value;
+    if(isDonut){
+      draft.donut_box_type=card.querySelector('#svDonutType').value;
+      draft.auto_donut_cost=true;draft.base_recipe_id='';draft.recipe_amount_g=0;
+    }else{
+      draft.base_recipe_id=card.querySelector('#svRecipe').value;draft.recipe_amount_g=Number(card.querySelector('#svGrams').value||0);draft.donut_box_type='';draft.auto_donut_cost=false;
+    }
+    draft.other_cost=Number(card.querySelector('#svOther').value||0);draft.menu_price=Number(card.querySelector('#svPrice').value||0);
   };
   const renderParts=()=>{
     syncDraft();
@@ -1920,9 +1959,14 @@ function openSeasonalVariantForm(product,variantId,done){
     });
     pb.querySelectorAll('button').forEach(b=>b.onclick=()=>{draft.packaging.splice(Number(b.dataset.i),1);renderParts()});
     const c=seasonalVariantCost(draft);
-    card.querySelector('#svSummary').innerHTML='<div><span>Recipe Cost</span><b>'+money(c.recipe)+'</b></div><div><span>Extra Ingredients</span><b>'+money(c.extras)+'</b></div><div><span>Packaging</span><b>'+money(c.pack)+'</b></div><div><span>Other Cost</span><b>'+money(c.other)+'</b></div><div><span>Total Cost</span><b>'+money(c.total)+'</b></div><div><span>Minimum / Suggested (80%)</span><b>'+money(c.suggested)+'</b></div>';
+    if(isDonut){
+      const kind=String(draft.donut_box_type||'').toLowerCase().startsWith('ring')?'ring':'bomboloni';
+      const unit=seasonalDonutUnitCost(kind),qty=seasonalPackQty(draft.size_label);
+      card.querySelector('#svAutoDonut').value=money(unit)+' each × '+qty+' = '+money(unit*qty);
+    }
+    card.querySelector('#svSummary').innerHTML='<div><span>'+(isDonut?'Base Donut Cost':'Recipe Cost')+'</span><b>'+money(c.recipe)+'</b></div><div><span>Extra Ingredients</span><b>'+money(c.extras)+'</b></div><div><span>Packaging</span><b>'+money(c.pack)+'</b></div><div><span>Other Cost</span><b>'+money(c.other)+'</b></div><div><span>Total Cost</span><b>'+money(c.total)+'</b></div><div><span>Minimum / Suggested (80%)</span><b>'+money(c.suggested)+'</b></div>';
   };
-  ['svSize','svRecipe','svGrams','svOther','svPrice'].forEach(id=>card.querySelector('#'+id).addEventListener('input',renderParts));
+  (isDonut?['svSize','svDonutType','svOther','svPrice']:['svSize','svRecipe','svGrams','svOther','svPrice']).forEach(id=>card.querySelector('#'+id).addEventListener('input',renderParts));
   card.querySelector('#svAddIngredient').onclick=()=>{
     const names=(S.ingredients||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name)));
     const {wrap:w,card:c}=seasonalModal('Add Seasonal Ingredient','<label>Ingredient<select id="sei">'+names.map(x=>'<option value="'+escapeHtml(x.id)+'">'+escapeHtml(x.name)+'</option>').join('')+'</select></label><label>Quantity<input id="seq" type="number" min="0.01" step="0.01" value="1"></label><label>Unit<select id="seu"><option>g</option><option>kg</option><option>ml</option><option>L</option><option>each</option></select></label><div class="action-row"><button id="sea">Add</button><button id="sec" class="secondary">Cancel</button></div>');
@@ -1934,7 +1978,7 @@ function openSeasonalVariantForm(product,variantId,done){
     c.querySelector('#spc').onclick=()=>w.remove();c.querySelector('#spa').onclick=()=>{draft.packaging.push({packaging_id:c.querySelector('#spi').value,quantity:Number(c.querySelector('#spq').value||1)});w.remove();renderParts()};
   };
   card.querySelector('#svCancel').onclick=()=>wrap.remove();
-  card.querySelector('#svSave').onclick=()=>{syncDraft();if(!draft.base_recipe_id){alert('Choose a base recipe.');return}if(draft.recipe_amount_g<=0){alert('Recipe amount must be greater than zero.');return}if(existing)Object.assign(existing,draft);else product.variants=(product.variants||[]).concat([draft]);wrap.remove();done()};
+  card.querySelector('#svSave').onclick=()=>{syncDraft();if(!isDonut&&!draft.base_recipe_id){alert('Choose a base recipe.');return}if(!isDonut&&draft.recipe_amount_g<=0){alert('Recipe amount must be greater than zero.');return}if(isDonut&&seasonalVariantCost(draft).recipe<=0){alert('No Donut World cost is available for this box type. Sync with the laptop after setting up your donuts in Donut World.');return}if(existing)Object.assign(existing,draft);else product.variants=(product.variants||[]).concat([draft]);wrap.remove();done()};
   if(existing)card.querySelector('#svDelete').onclick=()=>{product.variants=(product.variants||[]).filter(x=>x!==existing);wrap.remove();done()};
   renderParts();
 }
